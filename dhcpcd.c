@@ -754,6 +754,7 @@ configure_interface1(struct interface *iface)
 		ifo->options |= DHCPCD_CLIENTID;
 
 	free(iface->clientid);
+	iface->clientid = NULL;
 	if (*ifo->clientid) {
 		iface->clientid = xmalloc(ifo->clientid[0] + 1);
 		memcpy(iface->clientid, ifo->clientid, ifo->clientid[0] + 1);
