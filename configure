@@ -1,7 +1,6 @@
 #!/bin/sh
 # Try and be like autotools configure, but without autotools
 
-HOOKSET=false
 ARC4RANDOM=
 CLOSEFROM=
 GETLINE=
@@ -29,8 +28,6 @@ for x; do
 	--mandir) MANDIR=$var;;
 	--with-ccopts|CFLAGS) CFLAGS=$var;;
 	CPPFLAGS) CPPFLAGS=$var;;
-	--with-hook) HOOKSCRIPTS="$HOOKSCRIPTS${HOOKSCRIPTS:+ }$var";;
-	--with-hooks|HOOKSCRIPTS) HOOKSCRIPTS=$var; HOOKSET=true;;
 	--build) BUILD=$var;;
 	--host) HOST=$var;;
 	--target) TARGET=$var;;
@@ -314,51 +311,6 @@ if [ "$STRLCPY" = no ]; then
 	echo "#include \"compat/strlcpy.h\"" >>$CONFIG_H
 fi
 
-HOOKS=
-if ! $HOOKSET; then
-	printf "Checking for ntpd ... "
-	NTPD=$(_which ntpd)
-	if [ -n "$NTPD" ]; then
-		echo "$NTPD (50-ntp.conf)"
-		HOOKS="$HOOKS${HOOKS:+ }50-ntp.conf"
-	else
-		echo "not found"
-	fi
-
-	printf "Checking for ypind ... "
-	YPBIND=$(_which ypbind)
-	if [ -n "$YPBIND" ]; then
-		if strings "$YPBIND" | grep -q yp.conf; then
-			YPHOOK="50-yp.conf"
-		else
-			YPHOOK="50-ypbind"
-		fi
-		echo "$YPBIND ($YPHOOK)"
-		HOOKS="$HOOKS${HOOKS:+ }$YPHOOK"
-	else
-		echo "not found"
-	fi
-fi
-
-cd dhcpcd-hooks
-for x in $HOOKSCRIPTS; do
-	printf "Finding hook $x ... "
-	for h in [0-9][0-9]"-$x" [0-9][0-9]"-$x.sh" [0-9][0-9]"-$x.conf"; do
-		[ -e "$h" ] && break
-	done
-	if [ ! -e "$h" ]; then
-		echo "no"
-	else
-		echo "$h"
-		case " $HOOKS " in
-		*" $h "*)	;;
-		*)		HOOKS="$HOOKS${HOOKS:+ }$h";;
-		esac
-	fi
-done
-cd ..
-echo "HOOKSCRIPTS=	$HOOKS" >>$CONFIG_MK
-
 echo
 echo "   SYSCONFDIR =		$SYSCONFDIR"
 echo "   SBINDIR =		$SBINDIR"
@@ -367,5 +319,4 @@ echo "   LIBEXECDIR =		$LIBEXECDIR"
 echo "   DBDIR =		$DBDIR"
 echo "   RUNDIR =		$RUNDIR"
 echo "   MANDIR =		$MANDIR"
-echo "   HOOKSCRIPTS =	$HOOKS"
 echo

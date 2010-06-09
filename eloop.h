@@ -30,7 +30,8 @@
 
 #include <time.h>
 
-void add_event(int fd, void (*)(void *), void *);
+int add_event(int fd, void (*)(void *), void *);
+int add_event_flags(int fd, int flags, void (*)(int, void *), void *);
 void delete_event(int fd);
 void add_timeout_sec(time_t, void (*)(void *), void *);
 void add_timeout_tv(const struct timeval *, void (*)(void *), void *);

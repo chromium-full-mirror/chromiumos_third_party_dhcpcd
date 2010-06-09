@@ -41,7 +41,9 @@ static struct timeval now;
 
 static struct event {
 	int fd;
+	int flags;
 	void (*callback)(void *);
+	void (*callback_f)(int, void *);
 	void *arg;
 	struct event *next;
 } *events;
@@ -58,17 +60,23 @@ static struct timeout *free_timeouts;
 static struct pollfd *fds;
 static size_t fds_len;
 
-void
-add_event(int fd, void (*callback)(void *), void *arg)
+static int
+_add_event_flags(int fd,
+    int flags,
+    void (*callback)(void *),
+    void (*callback_f)(int, void *),
+    void *arg)
 {
 	struct event *e, *last = NULL;
 
 	/* We should only have one callback monitoring the fd */
 	for (e = events; e; e = e->next) {
 		if (e->fd == fd) {
+			e->flags = flags;
 			e->callback = callback;
+			e->callback_f = callback_f;
 			e->arg = arg;
-			return;
+			return 0;
 		}
 		last = e;
 	}
@@ -77,16 +85,34 @@ add_event(int fd, void (*callback)(void *), void *arg)
 	if (free_events) {
 		e = free_events;
 		free_events = e->next;
-	} else
-		e = xmalloc(sizeof(*e));
+	} else {
+		e = malloc(sizeof(*e));
+		if (e == NULL)
+			return -1;
+	}
 	e->fd = fd;
+	e->flags = flags;
 	e->callback = callback;
+	e->callback_f = callback_f;
 	e->arg = arg;
 	e->next = NULL;
 	if (last)
 		last->next = e;
 	else
 		events = e;
+	return 0;
+}
+
+int
+add_event(int fd, void (*callback)(void *), void *arg)
+{
+	return _add_event_flags(fd, 0, callback, NULL, arg);
+}
+
+int
+add_event_flags(int fd, int flags, void (*callback)(int, void *), void *arg)
+{
+	return _add_event_flags(fd, flags, NULL, callback, arg);
 }
 
 void
@@ -296,7 +322,7 @@ start_eloop(void)
 				msecs = INT_MAX;
 			else
 				msecs = tv.tv_sec * 1000 +
-				    (tv.tv_usec + 999) / 1000;
+					(tv.tv_usec + 999) / 1000;
 		} else
 			/* No timeouts, so wait forever. */
 			msecs = -1;
@@ -312,14 +338,20 @@ start_eloop(void)
 		}
 		if (nfds > fds_len) {
 			free(fds);
-			/* Allocate 5 more than we need for future use */
-			fds_len = nfds + 5;
-			fds = xmalloc(sizeof(*fds) * fds_len);
+			fds = malloc(sizeof(*fds) * nfds);
+			if (fds == NULL) {
+				syslog(LOG_ERR, "malloc: %m");
+				exit(EXIT_FAILURE);
+			}
+			fds_len = nfds;
 		}
 		nfds = 0;
 		for (e = events; e; e = e->next) {
 			fds[nfds].fd = e->fd;
-			fds[nfds].events = POLLIN;
+			if (e->flags == 0)
+				fds[nfds].events = POLLIN;
+			else
+				fds[nfds].events = e->flags;
 			fds[nfds].revents = 0;
 			nfds++;
 		}
@@ -338,13 +370,18 @@ start_eloop(void)
 		if (n == 0)
 			continue;
 		for (i = 0; i < nfds; i++) {
-			if (!(fds[i].revents & (POLLIN | POLLHUP)))
+			if (fds[i].revents == 0)
 				continue;
 			for (e = events; e; e = e->next) {
-				if (e->fd == fds[i].fd) {
-					e->callback(e->arg);
+				if (e->fd != fds[i].fd)
+					continue;
+				if (e->flags) {
+					e->callback_f(fds[i].revents, e->arg);
 					break;
 				}
+				if (fds[i].revents & (POLLIN | POLLHUP))
+					e->callback(e->arg);
+				break;
 			}
 		}
 	}

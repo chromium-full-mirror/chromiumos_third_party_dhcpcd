@@ -61,6 +61,7 @@ const char copyright[] = "Copyright (c) 2006-2009 Roy Marples";
 #include "configure.h"
 #include "control.h"
 #include "dhcpcd.h"
+#include "dhcpcd-dbus.h"
 #include "duid.h"
 #include "eloop.h"
 #include "if-options.h"
@@ -1298,7 +1299,6 @@ handle_ifa(int type, const char *ifname,
 						i, *dst);
 		}
 		ifp->state->reason = "STATIC";
-		build_routes();
 		run_script(ifp);
 		if (ifo->options & DHCPCD_INFORM) {
 			ifp->state->state = DHS_INFORM;
@@ -1323,7 +1323,7 @@ handle_link(_unused void *arg)
 }
 
 /* ARGSUSED */
-static void
+void
 handle_signal(_unused void *arg)
 {
 	struct interface *iface, *ifl;
@@ -1419,64 +1419,6 @@ handle_args(struct fd_list *fd, int argc, char **argv)
 	size_t l;
 	struct iovec iov[2];
 	char *tmp, *p;
-
-	if (fd != NULL) {
-		/* Special commands for our control socket */
-		if (strcmp(*argv, "--version") == 0) {
-			len = strlen(VERSION) + 1;
-			iov[0].iov_base = &len;
-			iov[0].iov_len = sizeof(ssize_t);
-			iov[1].iov_base = UNCONST(VERSION);
-			iov[1].iov_len = len;
-			if (writev(fd->fd, iov, 2) == -1) {
-				syslog(LOG_ERR, "writev: %m");
-				return -1;
-			}
-			return 0;
-		} else if (strcmp(*argv, "--getconfigfile") == 0) {
-			len = strlen(cffile ? cffile : CONFIG) + 1;
-			iov[0].iov_base = &len;
-			iov[0].iov_len = sizeof(ssize_t);
-			iov[1].iov_base = cffile ? cffile : UNCONST(CONFIG);
-			iov[1].iov_len = len;
-			if (writev(fd->fd, iov, 2) == -1) {
-				syslog(LOG_ERR, "writev: %m");
-				return -1;
-			}
-			return 0;
-		} else if (strcmp(*argv, "--getinterfaces") == 0) {
-			len = 0;
-			if (argc == 1) {
-				for (ifp = ifaces; ifp; ifp = ifp->next)
-					len++;
-				len = write(fd->fd, &len, sizeof(len));
-				if (len != sizeof(len))
-					return -1;
-				for (ifp = ifaces; ifp; ifp = ifp->next)
-					send_interface(fd->fd, ifp);
-				return 0;
-			}
-			opt = 0;
-			while (argv[++opt] != NULL) {
-				for (ifp = ifaces; ifp; ifp = ifp->next)
-					if (strcmp(argv[opt], ifp->name) == 0)
-						len++;
-			}
-			len = write(fd->fd, &len, sizeof(len));
-			if (len != sizeof(len))
-				return -1;
-			opt = 0;
-			while (argv[++opt] != NULL) {
-				for (ifp = ifaces; ifp; ifp = ifp->next)
-					if (strcmp(argv[opt], ifp->name) == 0)
-						send_interface(fd->fd, ifp);
-			}
-			return 0;
-		} else if (strcmp(*argv, "--listen") == 0) {
-			fd->listener = 1;
-			return 0;
-		}
-	}
 
 	/* Log the command */
 	len = 0;
@@ -1575,7 +1517,7 @@ main(int argc, char **argv)
 	struct timespec ts;
 
 	closefrom(3);
-	openlog(PACKAGE, LOG_PERROR, LOG_DAEMON);
+	openlog(PACKAGE, LOG_PID | LOG_PERROR, LOG_DAEMON);
 	setlogmask(LOG_UPTO(LOG_INFO));
 
 	/* Test for --help and --version */
@@ -1634,7 +1576,7 @@ main(int argc, char **argv)
 		options |= DHCPCD_TEST | DHCPCD_PERSISTENT;
 		options &= ~DHCPCD_DAEMONISE;
 	}
-	
+
 #ifdef THERE_IS_NO_FORK
 	options &= ~DHCPCD_DAEMONISE;
 #endif
@@ -1717,9 +1659,7 @@ main(int argc, char **argv)
 	}
 
 	if (!(options & DHCPCD_TEST)) {
-		if ((pid = read_pid()) > 0 &&
-		    kill(pid, 0) == 0)
-		{
+		if ((pid = read_pid()) > 0 && kill(pid, 0) == 0) {
 			syslog(LOG_ERR, ""PACKAGE
 			    " already running on pid %d (%s)",
 			    pid, pidfile);
@@ -1769,6 +1709,10 @@ main(int argc, char **argv)
 
 	if (init_sockets() == -1) {
 		syslog(LOG_ERR, "init_socket: %m");
+		exit(EXIT_FAILURE);
+	}
+	if (dhcpcd_dbus_init() == -1) {
+		/* NB: dhcpcd_dbus_init generates a syslog msg */
 		exit(EXIT_FAILURE);
 	}
 	if (ifo->options & DHCPCD_LINK) {

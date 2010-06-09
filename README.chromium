@@ -1,0 +1,13 @@
+URL: http://roy.marples.name/projects/dhcpcd/
+Version: Current as of Wed Jan 13 13:08 PDT 2010
+License: BSD License clause 2.
+License File: No LICENSE file is available since the source code does not contaiin one.
+
+Description:
+  The source code for dhcpcd mangled for use with flimflam.  Specifically,
+  we integrate the d-bus support and instead of directly handling Layer 3
+  state configuration push it back to flimflam.
+
+  Note we rename the d-bus objects to avoid conflicting with the original
+  dhcpcd implementation.  The dhcpcd d-bus protocol has also been changed
+  and is incompatible.

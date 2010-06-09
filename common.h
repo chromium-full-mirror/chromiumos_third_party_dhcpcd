@@ -67,6 +67,16 @@
 # endif
 #endif
 
+#define UNCONST(a)	((void *)(unsigned long)(const void *)(a))
+
+#if defined(__GNUC__)
+# define _printf(a, b)  __attribute__((__format__(__printf__, a, b)))
+# define _unused __attribute__((__unused__))
+#else
+# define _printf(a, b)
+# define _unused
+#endif
+
 int set_cloexec(int);
 int set_nonblock(int);
 char *get_line(FILE * __restrict);

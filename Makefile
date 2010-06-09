@@ -2,38 +2,43 @@
 
 PROG=		dhcpcd
 SRCS=		arp.c bind.c common.c control.c dhcp.c dhcpcd.c duid.c eloop.c
+SRCS+=		dbus-dict.c dhcpcd-dbus.c
 SRCS+=		if-options.c if-pref.c ipv4ll.c net.c signals.c
-SRCS+=		configure.c
 
 CFLAGS?=	-O2
 CSTD?=		c99
 CFLAGS+=	-std=${CSTD}
 include config.mk
 
+FILES+=		dhcpcd.conf dhcpcd-dbus.conf
+
+_DBUSCFLAGS_SH=	pkg-config --cflags dbus-1
+_DBUSCFLAGS!=	${_DBUSCFLAGS_SH}
+DBUSCFLAGS=	${_DBUSCFLAGS}$(shell ${_DBUSCFLAGS_SH})
+
+_DBUSLIBS_SH=	pkg-config --libs dbus-1
+_DBUSLIBS!=	${_DBUSLIBS_SH}
+DBUSLIBS=	${_DBUSLIBS}$(shell ${_DBUSLIBS_SH})
+
+DBUSDIR=	${SYSCONFDIR}/dbus-1/system.d
+
+# Linux needs librt
+_LIBRT_SH=	[ "$$(uname -s)" = "Linux" ] && echo "-lrt" || echo ""
+_LIBRT!=	${_LIBRT_SH}
+LIBRT?=		${_LIBRT}$(shell ${_LIBRT_SH})
+
+# Chrome OS crash reporting
+LIBCRASH?=	-lcrash
+
+CFLAGS+=	${DBUSCFLAGS}
+LDADD+=		${DBUSLIBS} ${LIBRT} ${LIBCRASH}
+
 OBJS+=		${SRCS:.c=.o} ${COMPAT_SRCS:.c=.o}
 
-SCRIPT=		${LIBEXECDIR}/dhcpcd-run-hooks
-HOOKDIR=	${LIBEXECDIR}/dhcpcd-hooks
-
-MAN5=		dhcpcd.conf.5
-MAN8=		dhcpcd.8 dhcpcd-run-hooks.8
-CLEANFILES=	dhcpcd.conf.5 dhcpcd.8 dhcpcd-run-hooks.8
-
-SCRIPTS=	dhcpcd-run-hooks
-SCRIPTSDIR=	${LIBEXECDIR}
-CLEANFILES+=	dhcpcd-run-hooks
 CLEANFILES+=	.depend
-
-FILES=		dhcpcd.conf
-FILESDIR=	${SYSCONFDIR}
 
 LDFLAGS+=	-Wl,-rpath=${LIBDIR}
 
-SUBDIRS=	dhcpcd-hooks
-
-SED_DBDIR=	-e 's:@DBDIR@:${DBDIR}:g'
-SED_HOOKDIR=	-e 's:@HOOKDIR@:${HOOKDIR}:g'
-SED_SCRIPT=	-e 's:@SCRIPT@:${SCRIPT}:g'
 SED_SYS=	-e 's:@SYSCONFDIR@:${SYSCONFDIR}:g'
 
 _DEPEND_SH=	test -e .depend && echo ".depend" || echo ""
@@ -55,9 +60,9 @@ CLEANFILES+=	*.tar.bz2
 .SUFFIXES:	.in
 
 .in:
-	${SED} ${SED_DBDIR} ${SED_HOOKDIR} ${SED_SCRIPT} ${SED_SYS} $< > $@
+	${SED} ${SED_SYS} $< > $@
 
-all: config.h ${PROG} ${SCRIPTS} ${MAN5} ${MAN8}
+all: config.h ${PROG} ${FILES}
 
 .c.o:
 	${CC} ${CFLAGS} ${CPPFLAGS} -c $< -o $@
@@ -73,24 +78,17 @@ ${PROG}: ${DEPEND} ${OBJS}
 _proginstall: ${PROG}
 	${INSTALL} -d ${DESTDIR}${SBINDIR}
 	${INSTALL} -m ${BINMODE} ${PROG} ${DESTDIR}${SBINDIR}
-	${INSTALL} -d ${DESTDIR}${DBDIR}
-
-_scriptsinstall: ${SCRIPTS}
-	${INSTALL} -d ${DESTDIR}${SCRIPTSDIR}
-	${INSTALL} -m ${BINMODE} ${SCRIPTS} ${DESTDIR}${SCRIPTSDIR}
-
-_maninstall: ${MAN5} ${MAN8}
-	${INSTALL} -d ${DESTDIR}${MANDIR}/man5
-	${INSTALL} -m ${MANMODE} ${MAN5} ${DESTDIR}${MANDIR}/man5
-	${INSTALL} -d ${DESTDIR}${MANDIR}/man8
-	${INSTALL} -m ${MANMODE} ${MAN8} ${DESTDIR}${MANDIR}/man8
 
 _confinstall:
+	# dhcpcd config file
 	${INSTALL} -d ${DESTDIR}${SYSCONFDIR}
-	test -e ${DESTDIR}${SYSCONFDIR}/dhcpcd.conf || \
-		${INSTALL} -m ${CONFMODE} dhcpcd.conf ${DESTDIR}${SYSCONFDIR}
+	${INSTALL} -m ${CONFMODE} dhcpcd.conf ${DESTDIR}${SYSCONFDIR}
+	# dhcpcd d-bus registration file (note file rename)
+	${INSTALL} -d ${DESTDIR}${DBUSDIR}
+	${INSTALL} -m ${CONFMODE} dhcpcd-dbus.conf \
+		${DESTDIR}${DBUSDIR}/dhcpcd.conf
 
-install: _proginstall _scriptsinstall _maninstall _confinstall
+install: _proginstall _confinstall
 	for x in ${SUBDIRS}; do cd $$x; ${MAKE} $@; cd ..; done
 
 clean:
