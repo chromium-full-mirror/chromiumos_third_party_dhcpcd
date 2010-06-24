@@ -472,7 +472,8 @@ msg_handler(DBusConnection *con, DBusMessage *msg, _unused void *data)
 {
 #define	IsMethod(msg, method) \
 	dbus_message_is_method_call(msg, DHCPCD_SERVICE, method)
-	if (IsMethod(msg, "Introspect")) {
+	if (dbus_message_is_method_call(msg, DBUS_INTERFACE_INTROSPECTABLE,
+                                        "Introspect")) {
 		return introspect(con, msg);
 	} else if (IsMethod(msg, "GetVersion")) {
 		return version(con, msg, VERSION);
