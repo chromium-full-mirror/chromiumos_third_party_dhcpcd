@@ -484,12 +484,12 @@ msg_handler(DBusConnection *con, DBusMessage *msg, _unused void *data)
 		bind_interface(ifaces);		/* XXX */
 		return dbus_ack(con, msg);
 	} else if (IsMethod(msg, "Release")) {
-		handle_signal(SIGHUP);
+		raise(SIGHUP);
 		return dbus_ack(con, msg);
 	} else if (IsMethod(msg, "Stop")) {
 		/* NB: must ack first 'cuz handle_signal exit's */
 		(void) dbus_ack(con, msg);
-		handle_signal(SIGINT);
+		raise(SIGINT);
 		/*NOTREACHED*/
 	}
 	return return_dbus_error(con, msg, S_EINVAL, S_ARGS);
