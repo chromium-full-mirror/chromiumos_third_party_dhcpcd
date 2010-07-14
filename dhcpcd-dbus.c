@@ -486,7 +486,6 @@ msg_handler(DBusConnection *con, DBusMessage *msg, _unused void *data)
 		return dbus_ack(con, msg);
 	} else if (IsMethod(msg, "Release")) {
 		send_release(ifaces);
-		stop_interface(ifaces);
 		return dbus_ack(con, msg);
 	} else if (IsMethod(msg, "Stop")) {
 		stop_interface(ifaces);
