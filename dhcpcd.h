@@ -128,12 +128,14 @@ void handle_ifa(int, const char *,
     struct in_addr *, struct in_addr *, struct in_addr *);
 void handle_exit_timeout(void *);
 void start_interface(void *);
+void stop_interface(struct interface *iface);
 void start_discover(void *);
 void start_request(void *);
 void start_renew(void *);
 void start_rebind(void *);
 void start_reboot(struct interface *);
 void start_expire(void *);
+void send_release(struct interface *);
 void send_decline(struct interface *);
 void close_sockets(struct interface *);
 void drop_config(struct interface *, const char *);

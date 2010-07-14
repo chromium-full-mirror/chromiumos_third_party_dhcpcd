@@ -111,8 +111,6 @@ static const struct dhcp_op dhcp_ops[] = {
 	{ 0, NULL }
 };
 
-static void send_release(struct interface *);
-
 static const char *
 get_dhcp_op(uint8_t type)
 {
@@ -248,7 +246,7 @@ find_interface(const char *ifname)
 	return NULL;
 }
 
-static void
+void
 stop_interface(struct interface *iface)
 {
 	struct interface *ifp, *ifl = NULL;
@@ -707,7 +705,7 @@ open_sockets(struct interface *iface)
 		add_event(iface->raw_fd, handle_dhcp_packet, iface);
 }
 
-static void
+void
 send_release(struct interface *iface)
 {
 	struct timespec ts;

@@ -482,16 +482,20 @@ msg_handler(DBusConnection *con, DBusMessage *msg, _unused void *data)
 	} else if (IsMethod(msg, "GetStatus")) {
 		return return_status(con, msg);
 	} else if (IsMethod(msg, "Rebind")) {
-		bind_interface(ifaces);		/* XXX */
+		start_interface(ifaces);
 		return dbus_ack(con, msg);
 	} else if (IsMethod(msg, "Release")) {
-		raise(SIGHUP);
+		send_release(ifaces);
+		stop_interface(ifaces);
 		return dbus_ack(con, msg);
 	} else if (IsMethod(msg, "Stop")) {
-		/* NB: must ack first 'cuz handle_signal exit's */
+		stop_interface(ifaces);
 		(void) dbus_ack(con, msg);
-		raise(SIGINT);
-		/*NOTREACHED*/
+		exit(EXIT_FAILURE);
+	} else if (dbus_message_is_signal(msg, DBUS_INTERFACE_LOCAL,
+					  "Disconnected")) {
+		stop_interface(ifaces);
+		exit(EXIT_FAILURE);
 	}
 	return return_dbus_error(con, msg, S_EINVAL, S_ARGS);
 #undef IsMethod
@@ -578,14 +582,6 @@ dhcpcd_dbus_init(void)
 	}
 	atexit(dhcpcd_dbus_close);
 
-#if 0
-	ret = dbus_bus_request_name(connection, DHCPCD_SERVICE,
-	    DBUS_NAME_FLAG_REPLACE_EXISTING, &err);
-	if (dbus_error_is_set(&err)) {
-		syslog(LOG_ERR, "%s", err.message);
-		return -1;
-	}
-#endif
 	if (!dbus_connection_set_watch_functions(connection,
 		add_watch, remove_watch, NULL, NULL, NULL))
 	{
@@ -617,11 +613,5 @@ configure(struct interface *ifp)
 int
 run_script(const struct interface *ifp)
 {
-	syslog(LOG_DEBUG, "executing `%s', reason %s",
-	    ifp->name, ifp->state->reason);
-#if 0
-	/* push state over d-bus */
-	dhcpcd_dbus_configure(ifp, ifp->state->reason);
-#endif
 	return 0;
 }
