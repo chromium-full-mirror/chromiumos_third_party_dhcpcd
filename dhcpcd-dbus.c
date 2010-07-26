@@ -473,7 +473,7 @@ msg_handler(DBusConnection *con, DBusMessage *msg, _unused void *data)
 #define	IsMethod(msg, method) \
 	dbus_message_is_method_call(msg, DHCPCD_SERVICE, method)
 	if (dbus_message_is_method_call(msg, DBUS_INTERFACE_INTROSPECTABLE,
-                                        "Introspect")) {
+					"Introspect")) {
 		return introspect(con, msg);
 	} else if (IsMethod(msg, "GetVersion")) {
 		return version(con, msg, VERSION);
@@ -552,10 +552,47 @@ remove_watch(DBusWatch *watch, _unused void *data)
 	delete_event(fd);
 }
 
+static DBusHandlerResult dhcpcd_dbus_filter(DBusConnection *conn,
+					    DBusMessage *msg,
+					    void *user_data)
+{
+	const char *service = NULL;
+	const char *old_owner = NULL;
+	const char *new_owner = NULL;
+
+	if (!dbus_message_is_signal(msg, DBUS_INTERFACE_DBUS,
+				    "NameOwnerChanged"))
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+	if (!dbus_message_get_args(msg, NULL,
+				   DBUS_TYPE_STRING, &service,
+				   DBUS_TYPE_STRING, &old_owner,
+				   DBUS_TYPE_STRING, &new_owner,
+				   DBUS_TYPE_INVALID)) {
+		syslog(LOG_ERR,
+		       "Invalid arguments for NameOwnerChanged signal");
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+	}
+	if (strcmp(service, "org.chromium.flimflam") == 0 &&
+	    strlen(new_owner) == 0) {
+		syslog(LOG_INFO, "exiting because flimflamd has died");
+		stop_interface(ifaces);
+		exit(EXIT_FAILURE);
+	}
+	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+}
+
+static const char *service_watch_rule = "interface=" DBUS_INTERFACE_DBUS
+					",type=signal,member=NameOwnerChanged";
+
 void
 dhcpcd_dbus_close(void)
 {
 	if (connection) {
+		dbus_bus_remove_match(connection, service_watch_rule, NULL);
+		dbus_connection_remove_filter(connection,
+					      dhcpcd_dbus_filter,
+					      NULL);
 		dbus_connection_unref(connection);
 		connection = NULL;
 	}
@@ -591,6 +628,12 @@ dhcpcd_dbus_init(void)
 		DHCPCD_PATH, &vt, NULL))
 	{
 		syslog(LOG_ERR, "dbus: failed to register object path");
+		return -1;
+	}
+	dbus_connection_add_filter(connection, dhcpcd_dbus_filter, NULL, NULL);
+	dbus_bus_add_match(connection, service_watch_rule, &err);
+	if (dbus_error_is_set(&err)) {
+		syslog(LOG_ERR, "Cannot add rule: %s", err.message);
 		return -1;
 	}
 	return 0;
