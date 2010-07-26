@@ -1713,6 +1713,8 @@ main(int argc, char **argv)
 		/* NB: dhcpcd_dbus_init generates a syslog msg */
 		exit(EXIT_FAILURE);
 	}
+	dhcpcd_dbus_signal_status("Init");
+
 	if (ifo->options & DHCPCD_LINK) {
 		linkfd = open_link_socket();
 		if (linkfd == -1)
