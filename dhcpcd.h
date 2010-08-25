@@ -1,6 +1,6 @@
 /* 
  * dhcpcd - DHCP client daemon
- * Copyright (c) 2006-2009 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2010 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -137,6 +137,7 @@ void start_reboot(struct interface *);
 void start_expire(void *);
 void send_release(struct interface *);
 void send_decline(struct interface *);
+void open_sockets(struct interface *);
 void close_sockets(struct interface *);
 void drop_config(struct interface *, const char *);
 int select_profile(struct interface *, const char *);
