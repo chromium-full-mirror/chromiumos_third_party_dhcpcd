@@ -27,11 +27,8 @@ _LIBRT_SH=	[ "$$(uname -s)" = "Linux" ] && echo "-lrt" || echo ""
 _LIBRT!=	${_LIBRT_SH}
 LIBRT?=		${_LIBRT}$(shell ${_LIBRT_SH})
 
-# Chrome OS crash reporting
-LIBCRASH?=	-lcrash
-
 CFLAGS+=	${DBUSCFLAGS}
-LDADD+=		${DBUSLIBS} ${LIBRT} ${LIBCRASH}
+LDADD+=		${DBUSLIBS} ${LIBRT}
 
 OBJS+=		${SRCS:.c=.o} ${COMPAT_SRCS:.c=.o}
 
