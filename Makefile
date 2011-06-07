@@ -4,6 +4,7 @@ PROG=		dhcpcd
 SRCS=		arp.c bind.c common.c control.c dhcp.c dhcpcd.c duid.c eloop.c
 SRCS+=		dbus-dict.c dhcpcd-dbus.c
 SRCS+=		if-options.c if-pref.c ipv4ll.c net.c signals.c
+PKG_CONFIG ?= pkg-config
 
 CFLAGS?=	-O2
 CSTD?=		c99
@@ -12,11 +13,11 @@ include config.mk
 
 FILES+=		dhcpcd.conf dhcpcd-dbus.conf
 
-_DBUSCFLAGS_SH=	pkg-config --cflags dbus-1
+_DBUSCFLAGS_SH=	$(PKG_CONFIG) --cflags dbus-1
 _DBUSCFLAGS!=	${_DBUSCFLAGS_SH}
 DBUSCFLAGS=	${_DBUSCFLAGS}$(shell ${_DBUSCFLAGS_SH})
 
-_DBUSLIBS_SH=	pkg-config --libs dbus-1
+_DBUSLIBS_SH=	$(PKG_CONFIG) --libs dbus-1
 _DBUSLIBS!=	${_DBUSLIBS_SH}
 DBUSLIBS=	${_DBUSLIBS}$(shell ${_DBUSLIBS_SH})
 
