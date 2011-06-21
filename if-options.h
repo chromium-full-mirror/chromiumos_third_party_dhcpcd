@@ -75,6 +75,7 @@
 #define DHCPCD_WAITUP		(1 << 26)
 #define DHCPCD_CSR_WARNED	(1 << 27)
 #define DHCPCD_XID_HWADDR	(1 << 28)
+#define DHCPCD_ARPGW		(1 << 29)
 
 extern const struct option cf_options[];
 

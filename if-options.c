@@ -90,6 +90,7 @@ const struct option cf_options[] = {
 	{"destination",     required_argument, NULL, 'N'},
 	{"nooption",        optional_argument, NULL, 'O'},
 	{"require",         required_argument, NULL, 'Q'},
+	{"arpgw",           no_argument,       NULL, 'R'},
 	{"static",          required_argument, NULL, 'S'},
 	{"test",            no_argument,       NULL, 'T'},
 	{"variables",       no_argument,       NULL, 'V'},
@@ -619,6 +620,9 @@ parse_option(struct if_options *ifo, int opt, const char *arg)
 			syslog(LOG_ERR, "unknown option `%s'", arg);
 			return -1;
 		}
+		break;
+	case 'R':
+		ifo->options |= DHCPCD_ARPGW;
 		break;
 	case 'S':
 		p = strchr(arg, '=');
