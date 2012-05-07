@@ -144,6 +144,12 @@ changes the routes to use the interface with the same route and the lowest
 metric.
 See options below for controlling which interfaces we allow and deny through
 the use of patterns.
+.Pp
+If an interface name is suffixed by an equal-sign, the text following the
+equal sign will be used instead of the interface name as the unique identifier
+for the DHCP lease file.  Doing so allows the caller to specify different
+lease files for the same interface (e.g, when switching the same wireless
+interface between different 802.11 networks).
 .Ss Hooking into DHCP events
 .Nm
 runs

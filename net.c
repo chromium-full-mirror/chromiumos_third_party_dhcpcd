@@ -181,24 +181,64 @@ hwaddr_aton(unsigned char *buffer, const char *addr)
 	return len;
 }
 
+int split_interface_lease(const char *ifname, int *interface_name_len,
+    const char **lease_identifier)
+{
+	int ret = 0;
+	int len;
+	const char *lease_ptr = ifname;
+	const char *p = strchr(ifname, '=');
+
+	if (interface_name_len)
+		len = *interface_name_len;
+	else
+		len = strlen(ifname);
+
+	if (p) {
+		lease_ptr = p + 1;
+		if (len > p - ifname)
+			len = p - ifname;
+		ret = 1;
+	}
+
+	if (interface_name_len)
+		*interface_name_len = len;
+	if (lease_identifier)
+		*lease_identifier = lease_ptr;
+	return ret;
+}
+
 struct interface *
 init_interface(const char *ifname)
 {
 	struct ifreq ifr;
 	struct interface *iface = NULL;
+	const *lease_identifier;
+	int ifname_len_max = sizeof(ifr.ifr_name);
+	int ifname_len;
+
+	/* Just in case these two sizes fall out of sync... */
+	if (ifname_len_max > sizeof(iface->name))
+		ifname_len_max = sizeof(iface->name);
+
+	ifname_len = ifname_len_max;
+	/* Reserve space for a null-terminator if possible */
+	if (split_interface_lease(ifname, &ifname_len, &lease_identifier) &&
+	    ifname_len < ifname_len_max)
+		ifname_len++;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+	strlcpy(ifr.ifr_name, ifname, ifname_len);
 	if (ioctl(socket_afnet, SIOCGIFFLAGS, &ifr) == -1)
 		goto eexit;
 
 	iface = xzalloc(sizeof(*iface));
-	strlcpy(iface->name, ifname, sizeof(iface->name));
+	strlcpy(iface->name, ifname, ifname_len);
 	iface->flags = ifr.ifr_flags;
 	/* We reserve the 100 range for virtual interfaces, if and when
 	 * we can work them out. */
 	iface->metric = 200 + if_nametoindex(iface->name);
-	if (getifssid(ifname, iface->ssid) != -1) {
+	if (getifssid(iface->name, iface->ssid) != -1) {
 		iface->wireless = 1;
 		iface->metric += 100;
 	}
@@ -208,13 +248,13 @@ init_interface(const char *ifname)
 	/* Ensure that the MTU is big enough for DHCP */
 	if (ifr.ifr_mtu < MTU_MIN) {
 		ifr.ifr_mtu = MTU_MIN;
-		strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+		strlcpy(ifr.ifr_name, ifname, ifname_len);
 		if (ioctl(socket_afnet, SIOCSIFMTU, &ifr) == -1)
 			goto eexit;
 	}
 
 	snprintf(iface->leasefile, sizeof(iface->leasefile),
-	    LEASEFILE, ifname);
+	    LEASEFILE, lease_identifier);
 	/* 0 is a valid fd, so init to -1 */
 	iface->raw_fd = -1;
 	iface->udp_fd = -1;
@@ -317,9 +357,6 @@ discover_interfaces(int argc, char * const *argv)
 	char *p;
 	int i;
 	struct interface *ifp, *ifs, *ifl;
-#ifdef __linux__
-	char ifn[IF_NAMESIZE];
-#endif
 #ifdef AF_LINK
 	const struct sockaddr_dl *sdl;
 #elif AF_PACKET
@@ -350,18 +387,17 @@ discover_interfaces(int argc, char * const *argv)
 			continue;
 		if (argc > 0) {
 			for (i = 0; i < argc; i++) {
+				int len = strlen(argv[i]);
+				split_interface_lease(argv[i], &len, NULL);
 #ifdef __linux__
 				/* Check the real interface name */
-				strlcpy(ifn, argv[i], sizeof(ifn));
-				p = strchr(ifn, ':');
-				if (p)
-					*p = '\0';
-				if (strcmp(ifn, ifa->ifa_name) == 0)
-					break;
-#else
-				if (strcmp(argv[i], ifa->ifa_name) == 0)
-					break;
+				p = strchr(argv[i], ':');
+				if (p && len > p - argv[i])
+					len = p - argv[i];
 #endif
+				if (len == strlen(ifa->ifa_name) &&
+				    strncmp(argv[i], ifa->ifa_name, len) == 0)
+					break;
 			}
 			if (i == argc)
 				continue;

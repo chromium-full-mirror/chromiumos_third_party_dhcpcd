@@ -1742,8 +1742,11 @@ main(int argc, char **argv)
 
 	ifaces = discover_interfaces(ifc, ifv);
 	for (i = 0; i < ifc; i++) {
+		int len = strlen(ifv[i]);
+		split_interface_lease(ifv[i], &len, NULL);
 		for (iface = ifaces; iface; iface = iface->next)
-			if (strcmp(iface->name, ifv[i]) == 0)
+			if (len == strlen(iface->name) &&
+			    strncmp(iface->name, ifv[i], len) == 0)
 				break;
 		if (!iface)
 			syslog(LOG_ERR, "%s: interface not found or invalid",
