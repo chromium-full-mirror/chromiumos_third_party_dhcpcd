@@ -43,7 +43,7 @@
 # define LEASEFILE		DBDIR "/" PACKAGE "-%s.lease"
 #endif
 #ifndef PIDFILE
-# define PIDFILE		RUNDIR "/" PACKAGE "%s%s.pid"
+# define PIDFILE		RUNDIR "/" PACKAGE "%s%.*s.pid"
 #endif
 #ifndef CONTROLSOCKET
 # define CONTROLSOCKET		RUNDIR "/" PACKAGE ".sock"

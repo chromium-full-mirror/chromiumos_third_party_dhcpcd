@@ -1598,10 +1598,13 @@ main(int argc, char **argv)
 		 *  instance for that interface. */
 		len = strlen(PIDFILE) + IF_NAMESIZE + 2;
 		pidfile = xmalloc(len);
-		if (optind == argc - 1)
-			snprintf(pidfile, len, PIDFILE, "-", argv[optind]);
-		else {
-			snprintf(pidfile, len, PIDFILE, "", "");
+		if (optind == argc - 1) {
+			int intf_len = strlen(argv[optind]);
+			split_interface_lease(argv[optind], &intf_len, NULL);
+			snprintf(pidfile, len, PIDFILE, "-", intf_len,
+                                 argv[optind]);
+		} else {
+			snprintf(pidfile, len, PIDFILE, "", 0, "");
 			options |= DHCPCD_MASTER;
 		}
 	}
