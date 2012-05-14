@@ -120,7 +120,7 @@ eexit:
 
 ssize_t
 send_raw_packet(const struct interface *iface, int protocol,
-    const void *data, ssize_t len)
+    const void *data, ssize_t len, const uint8_t *dest_hw_addr)
 {
 	union sockunion {
 		struct sockaddr sa;
@@ -138,7 +138,9 @@ send_raw_packet(const struct interface *iface, int protocol,
 	}
 	su.sll.sll_hatype = htons(iface->family);
 	su.sll.sll_halen = iface->hwlen;
-	if (iface->family == ARPHRD_INFINIBAND)
+	if (dest_hw_addr != NULL)
+		memcpy(&su.sll.sll_addr, dest_hw_addr, iface->hwlen);
+	else if (iface->family == ARPHRD_INFINIBAND)
 		memcpy(&su.sll.sll_addr,
 		    &ipv4_bcast_addr, sizeof(ipv4_bcast_addr));
 	else

@@ -167,6 +167,14 @@ struct dhcp_lease {
 	uint8_t frominfo;
 };
 
+/* Extra data about servers stored in the lease file after the dhcp_message */
+#define HWADDR_LEN 20
+
+struct dhcp_server_info {
+  uint8_t gw_hwlen;
+  unsigned char gw_hwaddr[HWADDR_LEN];
+} _packed;
+
 #include "dhcpcd.h"
 #include "if-options.h"
 #include "net.h"
@@ -194,7 +202,8 @@ ssize_t make_message(struct dhcp_message **, const struct interface *,
 int valid_dhcp_packet(unsigned char *);
 
 ssize_t write_lease(const struct interface *, const struct dhcp_message *);
-struct dhcp_message *read_lease(const struct interface *);
+ssize_t read_lease(struct interface *, struct dhcp_message **);
 void get_lease(struct dhcp_lease *, const struct dhcp_message *);
+int get_server_info(struct dhcp_server_info *, const struct dhcp_message *);
 
 #endif

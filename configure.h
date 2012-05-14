@@ -34,5 +34,6 @@ int send_interface(int, const struct interface *);
 int run_script(const struct interface *);
 void build_routes(void);
 int configure(struct interface *);
+int notify_unicast_arp(struct interface *);
 int route_deleted(const struct rt *);
 #endif

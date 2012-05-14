@@ -37,7 +37,6 @@
 #include "dhcp.h"
 #include "if-options.h"
 
-#define HWADDR_LEN 20
 #define IF_SSIDSIZE 33
 #define PROFILE_LEN 64
 
@@ -110,6 +109,7 @@ struct interface {
 	time_t start_uptime;
 
 	unsigned char *clientid;
+	struct dhcp_server_info server_info;
 
 	struct interface *next;
 };

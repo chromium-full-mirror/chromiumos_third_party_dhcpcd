@@ -291,8 +291,9 @@ dhcpcd_dbus_signal_status(const char *status)
 	dbus_message_unref(msg);
 }
 
-void
-dhcpcd_dbus_configure(const struct interface *ifp, const char *reason)
+static void
+dhcpcd_dbus_send_message(const struct interface *ifp, const char *reason,
+    const char *prefix, struct dhcp_message *message)
 {
 	const struct if_options *ifo = ifp->state->options;
 	DBusMessage* msg;
@@ -318,22 +319,21 @@ dhcpcd_dbus_configure(const struct interface *ifp, const char *reason)
 	    DBUS_TYPE_VARIANT_AS_STRING
 	    DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
 	    &dict);
-	if (ifp->state->new != NULL) {
-		e = configure_env(NULL, NULL, ifp->state->new, ifo);
-		if (e > 0) {
-			env = xzalloc(sizeof(char *) * (e + 1));
-			elen = configure_env(env, "new", ifp->state->new, ifo);
-		}
-		retval = append_config(&dict, "new_", env, elen);
-	} else if (ifp->state->old != NULL) {
-		e = configure_env(NULL, NULL, ifp->state->old, ifo);
-		if (e > 0) {
-			env = xzalloc(sizeof(char *) * (elen + e + 1));
-			elen = configure_env(env, "old", ifp->state->old, ifo);
-		}
-		retval = append_config(&dict, "old_", env, elen);
-	} else
+	if (prefix == NULL || message == NULL)
 		retval = 0;
+	else {
+		e = configure_env(NULL, NULL, message, ifo);
+		if (e > 0) {
+			char *config_prefix = xstrdup(prefix);
+			char *p = config_prefix + strlen(config_prefix) - 1;
+			if (p >= config_prefix && *p == '_')
+				*p = '\0';
+			env = xzalloc(sizeof(char *) * (e + 1));
+			elen = configure_env(env, config_prefix, message, ifo);
+			free(config_prefix);
+		}
+		retval = append_config(&dict, prefix, env, elen);
+	}
 	/* XXX reclaim env */
 	dbus_message_iter_close_container(&args, &dict);
 	if (retval == 0) {
@@ -342,6 +342,17 @@ dhcpcd_dbus_configure(const struct interface *ifp, const char *reason)
 	} else
 		syslog(LOG_ERR, "failed to construct dbus message");
 	dbus_message_unref(msg);
+}
+
+void
+dhcpcd_dbus_configure(const struct interface *ifp, const char *reason)
+{
+	if (ifp->state->new != NULL) {
+		dhcpcd_dbus_send_message(ifp, reason, "new_", ifp->state->new);
+	} else if (ifp->state->old != NULL) {
+		dhcpcd_dbus_send_message(ifp, reason, "old_", ifp->state->old);
+	} else
+		dhcpcd_dbus_send_message(ifp, reason, NULL, NULL);
 }
 
 static const char introspection_header_xml[] =
@@ -650,6 +661,11 @@ configure(struct interface *ifp)
 			syslog(LOG_ERR, "write_lease: %m");
 	}
 	return 0;
+}
+
+int
+notify_unicast_arp(struct interface *ifp) {
+	dhcpcd_dbus_send_message(ifp, "GATEWAY-ARP", "saved_", ifp->state->offer);
 }
 
 int

@@ -144,7 +144,7 @@ int open_socket(struct interface *, int);
 ssize_t send_packet(const struct interface *, struct in_addr, 
     const uint8_t *, ssize_t);
 ssize_t send_raw_packet(const struct interface *, int,
-    const void *, ssize_t);
+    const void *, ssize_t, const uint8_t *);
 ssize_t get_raw_packet(struct interface *, int, void *, ssize_t);
 
 int init_sockets(void);

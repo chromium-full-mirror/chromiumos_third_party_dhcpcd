@@ -93,6 +93,7 @@ const struct option cf_options[] = {
 	{"arpgw",           no_argument,       NULL, 'R'},
 	{"static",          required_argument, NULL, 'S'},
 	{"test",            no_argument,       NULL, 'T'},
+	{"unicast",         no_argument,       NULL, 'U'},
 	{"variables",       no_argument,       NULL, 'V'},
 	{"whitelist",       required_argument, NULL, 'W'},
 	{"blacklist",       required_argument, NULL, 'X'},
@@ -697,6 +698,9 @@ parse_option(struct if_options *ifo, int opt, const char *arg)
 			ifo->config[s] = xstrdup(arg);
 			ifo->config[s + 1] = NULL;
 		}
+		break;
+	case 'U':
+		ifo->options |= DHCPCD_UNICAST_ARP;
 		break;
 	case 'W':
 		if (parse_addr(&addr, &addr2, arg) != 0)

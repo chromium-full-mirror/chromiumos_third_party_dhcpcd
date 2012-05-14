@@ -141,7 +141,7 @@ read_pid(void)
 static void
 usage(void)
 {
-	printf("usage: "PACKAGE" [-dgknpqwxyADEGHKLOTV] [-c script] [-f file]"
+	printf("usage: "PACKAGE" [-dgknpqwxyADEGHKLORTUV] [-c script] [-f file]"
 	    " [-e var=val]\n"
 	    "              [-h hostname] [-i classID ] [-l leasetime]"
 	    " [-m metric] [-o option]\n"
@@ -328,7 +328,7 @@ send_message(struct interface *iface, int type,
 		}
 	} else {
 		len = make_udp_packet(&udp, (uint8_t *)dhcp, len, from, to);
-		r = send_raw_packet(iface, ETHERTYPE_IP, udp, len);
+		r = send_raw_packet(iface, ETHERTYPE_IP, udp, len, NULL);
 		free(udp);
 		/* If we failed to send a raw packet this normally means
 		 * we don't have the ability to work beneath the IP layer
@@ -1024,6 +1024,8 @@ start_reboot(struct interface *iface)
 		syslog(LOG_INFO, "%s: rebinding lease of %s",
 		    iface->name, inet_ntoa(iface->state->lease.addr));
 	}
+	if (ifo->options & DHCPCD_UNICAST_ARP)
+		start_unicast_arp(iface);
 	iface->state->state = DHS_REBOOT;
 	iface->state->xid = dhcp_xid(iface);
 	iface->state->lease.server.s_addr = 0;
@@ -1097,7 +1099,7 @@ start_interface(void *arg)
 			return;
 		}
 	} else
-		iface->state->offer = read_lease(iface);
+		read_lease(iface, &iface->state->offer);
 	if (iface->state->offer) {
 		get_lease(&iface->state->lease, iface->state->offer);
 		iface->state->lease.frominfo = 1;

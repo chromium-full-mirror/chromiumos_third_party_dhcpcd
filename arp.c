@@ -45,7 +45,8 @@
 	(sizeof(struct arphdr) + (2 * sizeof(uint32_t)) + (2 * HWADDR_LEN))
 
 static int
-send_arp(const struct interface *iface, int op, in_addr_t sip, in_addr_t tip)
+send_arp(const struct interface *iface, int op, in_addr_t sip, in_addr_t tip,
+    unsigned char *dest_hw_addr)
 {
 	uint8_t arp_buffer[ARP_LEN];
 	struct arphdr ar;
@@ -64,14 +65,16 @@ send_arp(const struct interface *iface, int op, in_addr_t sip, in_addr_t tip)
 	p += iface->hwlen;
 	memcpy(p, &sip, sizeof(sip));
 	p += sizeof(sip);
-	/* ARP requests should ignore this */
-	retval = iface->hwlen;
-	while (retval--)
-		*p++ = '\0';
+	if (dest_hw_addr != NULL)
+		memcpy(p, dest_hw_addr, iface->hwlen);
+	else
+		memset(p, '\0', iface->hwlen);
+	p += iface->hwlen;
 	memcpy(p, &tip, sizeof(tip));
 	p += sizeof(tip);
 	len = p - arp_buffer;
-	retval = send_raw_packet(iface, ETHERTYPE_ARP, arp_buffer, len);
+	retval = send_raw_packet(iface, ETHERTYPE_ARP, arp_buffer, len,
+				 dest_hw_addr);
 	return retval;
 }
 
@@ -91,6 +94,16 @@ handle_arp_failure(struct interface *iface)
 		start_interface(iface);
 	else
 		add_timeout_sec(DHCP_ARP_FAIL, start_interface, iface);
+}
+
+static void
+save_gateway_addr(struct interface *iface, uint8_t *gw_hwaddr, uint8_t gw_hwlen)
+{
+	memset(&iface->server_info, 0, sizeof(iface->server_info));
+	if (gw_hwlen > sizeof(iface->server_info.gw_hwaddr))
+		return;
+	memcpy(iface->server_info.gw_hwaddr, gw_hwaddr, gw_hwlen);
+	iface->server_info.gw_hwlen = gw_hwlen;
 }
 
 static void
@@ -134,9 +147,11 @@ handle_arp_packet(void *arg)
 		/* Ensure we got all the data */
 		if ((hw_t + ar.ar_hln + ar.ar_pln) - arp_buffer > bytes)
 			continue;
+		/* Ignore messages with strange hardware address lengths */
+		if (ar.ar_hln != iface->hwlen)
+			continue;
 		/* Ignore messages from ourself */
-		if (ar.ar_hln == iface->hwlen &&
-		    memcmp(hw_s, iface->hwaddr, iface->hwlen) == 0)
+		if (memcmp(hw_s, iface->hwaddr, iface->hwlen) == 0)
 			continue;
 		/* Copy out the IP addresses */
 		memcpy(&reply_s, hw_s + ar.ar_hln, ar.ar_pln);
@@ -165,7 +180,8 @@ handle_arp_packet(void *arg)
 		}
 
 		if (state->offer) {
-			if (state->state == DHS_PROBEGW) {
+			if (state->state == DHS_PROBEGW ||
+			    state->state == DHS_REBOOT) {
 				/* Check for successful gateway probe */
 				if (ar.ar_op == htons(ARPOP_REPLY) &&
 				    reply_s == state->offer->giaddr) {
@@ -176,8 +192,18 @@ handle_arp_packet(void *arg)
 					       hwaddr_ntoa((unsigned char *)
 							   hw_s,
 							   (size_t)ar.ar_hln));
-					delete_timeout(NULL, iface);
-					bind_interface(iface);
+					if (state->state == DHS_PROBEGW) {
+						delete_timeout(NULL, iface);
+						save_gateway_addr(iface, hw_s,
+								  ar.ar_hln);
+						bind_interface(iface);
+					} else if (memcmp(iface->server_info.
+							  gw_hwaddr, hw_s,
+							  ar.ar_hln) == 0)
+						notify_unicast_arp(iface);
+					delete_event(iface->arp_fd);
+					close(iface->arp_fd);
+					iface->arp_fd = -1;
 				}
 				return;
 			} else {
@@ -230,7 +256,7 @@ send_arp_announce(void *arg)
 		    "%s: sending ARP announce (%d of %d)",
 		    iface->name, state->claims, ANNOUNCE_NUM);
 	if (send_arp(iface, ARPOP_REQUEST,
-		state->new->yiaddr, state->new->yiaddr) == -1)
+		state->new->yiaddr, state->new->yiaddr, NULL) == -1)
 		syslog(LOG_ERR, "send_arp: %m");
 	if (state->claims < ANNOUNCE_NUM) {
 		add_timeout_sec(ANNOUNCE_WAIT, send_arp_announce, iface);
@@ -323,7 +349,7 @@ send_arp_probe(void *arg)
 	    "%s: sending ARP probe (%d of %d), next in %0.2f seconds",
 	    iface->name, state->probes ? state->probes : PROBE_NUM, PROBE_NUM,
 	    timeval_to_double(&tv));
-	if (send_arp(iface, ARPOP_REQUEST, src_addr, addr.s_addr) == -1)
+	if (send_arp(iface, ARPOP_REQUEST, src_addr, addr.s_addr, NULL) == -1)
 		syslog(LOG_ERR, "send_arp: %m");
 }
 
@@ -375,4 +401,47 @@ start_arping(struct interface *iface)
 	iface->state->probes = 0;
 	iface->state->arping_index = 0;
 	send_arp_probe(iface);
+}
+
+int
+start_unicast_arp(struct interface *iface)
+{
+	int i;
+	struct in_addr gwa;
+	in_addr_t src_addr = 0;
+	struct if_state *state = iface->state;
+
+	if (!state->offer)
+		return 0;
+
+	if (!state->lease.frominfo)
+		return 0;
+
+	if (iface->server_info.gw_hwlen != iface->hwlen)
+		return 0;
+
+	if (get_option_addr(&gwa, state->offer, DHO_ROUTER))
+		return 0;
+
+	/* Invalidate our gateway address until the next successful PROBEGW */
+	iface->server_info.gw_hwlen = 0;
+
+	if (state->offer->yiaddr)
+		src_addr = state->offer->yiaddr;
+	else
+		src_addr = state->offer->ciaddr;
+
+	if (iface->arp_fd == -1) {
+		open_socket(iface, ETHERTYPE_ARP);
+		add_event(iface->arp_fd, handle_arp_packet, iface);
+	}
+
+	/* Send a unicast ARP for the gateway IP / MAC sourced from leased IP */
+	if (send_arp(iface, ARPOP_REQUEST, src_addr, gwa.s_addr,
+		     iface->server_info.gw_hwaddr) == -1) {
+		syslog(LOG_ERR, "send_arp: %m");
+		return 0;
+	}
+
+	return 1;
 }

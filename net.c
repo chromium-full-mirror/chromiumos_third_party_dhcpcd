@@ -213,7 +213,7 @@ init_interface(const char *ifname)
 {
 	struct ifreq ifr;
 	struct interface *iface = NULL;
-	const *lease_identifier;
+	const char *lease_identifier;
 	int ifname_len_max = sizeof(ifr.ifr_name);
 	int ifname_len;
 

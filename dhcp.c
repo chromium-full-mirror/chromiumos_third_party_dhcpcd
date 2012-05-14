@@ -28,6 +28,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
@@ -1039,8 +1040,10 @@ write_lease(const struct interface *iface, const struct dhcp_message *dhcp)
 	ssize_t bytes = sizeof(*dhcp);
 	const uint8_t *p = dhcp->options;
 	const uint8_t *e = p + sizeof(dhcp->options);
+	uint8_t write_buffer[sizeof(*dhcp) + sizeof(iface->server_info) + 1];
 	uint8_t l;
 	uint8_t o = 0;
+	uint8_t *w;
 
 	/* We don't write BOOTP leases */
 	if (is_bootp(dhcp)) {
@@ -1070,36 +1073,97 @@ write_lease(const struct interface *iface, const struct dhcp_message *dhcp)
 			p += l;
 		}
 	}
-	bytes = write(fd, dhcp, bytes);
+
+	memcpy(write_buffer, dhcp, bytes);
+	w = write_buffer + bytes;
+
+	/* Copy in server info if this is available. */
+	if (iface->server_info.gw_hwlen != 0) {
+		*w++ = DHO_END;
+		memcpy(w, &iface->server_info, sizeof(iface->server_info));
+		bytes += sizeof(iface->server_info) + 1;
+	}
+
+	bytes = write(fd, write_buffer, bytes);
 	close(fd);
 	return bytes;
 }
 
-struct dhcp_message *
-read_lease(const struct interface *iface)
+ssize_t
+read_lease(struct interface *iface, struct dhcp_message **dhcpp)
 {
 	int fd;
-	struct dhcp_message *dhcp;
+	uint8_t read_buffer[sizeof(**dhcpp) + sizeof(iface->server_info)];
+	const uint8_t *options_startp =
+		read_buffer + offsetof(struct dhcp_message, options);
+	const uint8_t *options_endp = options_startp +
+		sizeof((*dhcpp)->options);
+	uint8_t option_len;
+	uint8_t option_type = 0;
 	ssize_t bytes;
+
+	if (*dhcpp != NULL) {
+		free(*dhcpp);
+		*dhcpp = NULL;
+	}
+	memset(&iface->server_info, 0, sizeof(iface->server_info));
 
 	fd = open(iface->leasefile, O_RDONLY);
 	if (fd == -1) {
 		if (errno != ENOENT)
 			syslog(LOG_ERR, "%s: open `%s': %m",
 			    iface->name, iface->leasefile);
-		return NULL;
+		return 0;
 	}
 	syslog(LOG_DEBUG, "%s: reading lease `%s'",
 	    iface->name, iface->leasefile);
-	dhcp = xmalloc(sizeof(*dhcp));
-	memset(dhcp, 0, sizeof(*dhcp));
-	bytes = read(fd, dhcp, sizeof(*dhcp));
+	bytes = read(fd, read_buffer, sizeof(read_buffer));
 	close(fd);
-	if (bytes < 0) {
-		free(dhcp);
-		dhcp = NULL;
+
+	/* Lease file should at minimum contain all fields before options. */
+	if (read_buffer + bytes < options_startp)
+		return 0;
+
+	*dhcpp = xmalloc(sizeof(**dhcpp));
+	memset(*dhcpp, 0, sizeof(**dhcpp));
+
+	if (options_endp > read_buffer + bytes)
+		options_endp = read_buffer + bytes;
+
+	while (options_startp < options_endp) {
+		option_type = *options_startp++;
+		if (option_type == DHO_END)
+			break;
+		if (option_type != DHO_PAD) {
+			option_len = *options_startp++;
+			options_startp += option_len;
+		}
 	}
-	return dhcp;
+	memcpy(*dhcpp, read_buffer, options_startp - read_buffer);
+
+	/*
+	 * DHCP server information is stored after the DHO_END character
+	 * in the lease file.  The first byte of the server information
+	 * is the length of the gateway hardware address.
+	 */
+	options_endp = read_buffer + bytes;
+	if (options_startp >= options_endp ||
+	    options_startp + sizeof(iface->server_info) > options_endp)
+		return bytes;
+
+	syslog(LOG_DEBUG, "%s: found server info in lease `%s'",
+	    iface->name,  iface->leasefile);
+
+	memcpy(&iface->server_info, options_startp, sizeof(iface->server_info));
+	if (iface->server_info.gw_hwlen != iface->hwlen) {
+		syslog(LOG_ERR, "%s: lease file %s has incompatible MAC address"
+		       " length %d (expected %d)", iface->name,
+                       iface->leasefile, iface->server_info.gw_hwlen,
+                       iface->hwlen);
+		memset(&iface->server_info, 0, sizeof(iface->server_info));
+	}
+
+	return bytes;
 }
 
 static ssize_t

@@ -136,14 +136,17 @@ eexit:
 
 ssize_t
 send_raw_packet(const struct interface *iface, int protocol,
-    const void *data, ssize_t len)
+    const void *data, ssize_t len, const uint8_t *dest_hw_addr)
 {
 	struct iovec iov[2];
 	struct ether_header hw;
 	int fd;
 
 	memset(&hw, 0, ETHER_HDR_LEN);
-	memset(&hw.ether_dhost, 0xff, ETHER_ADDR_LEN);
+	if (dest_hw_addr != NULL)
+		memcpy(&hw.ether_dhost, dest_hw_addr, ETHER_ADDR_LEN);
+	else
+		memset(&hw.ether_dhost, 0xff, ETHER_ADDR_LEN);
 	hw.ether_type = htons(protocol);
 	iov[0].iov_base = &hw;
 	iov[0].iov_len = ETHER_HDR_LEN;
