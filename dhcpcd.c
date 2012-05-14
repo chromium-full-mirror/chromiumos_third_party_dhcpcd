@@ -1633,8 +1633,8 @@ main(int argc, char **argv)
 	}
 
 	if (geteuid())
-		syslog(LOG_WARNING,
-		    PACKAGE " will not work correctly unless run as root");
+		syslog(LOG_NOTICE,
+		    PACKAGE " is running with reduced privileges");
 
 	if (sig != 0) {
 		pid = read_pid();
