@@ -879,6 +879,8 @@ start_request(void *arg)
 {
 	struct interface *iface = arg;
 
+	syslog(LOG_INFO, "%s: requesting lease of %s",
+	    iface->name, inet_ntoa(iface->state->lease.addr));
 	iface->state->state = DHS_REQUEST;
 	send_request(iface);
 }
@@ -978,6 +980,8 @@ start_inform(struct interface *iface)
 {
 	if (handle_3rdparty(iface))
 		return;
+
+	syslog(LOG_INFO, "%s: informing peers of local address", iface->name);
 
 	if (options & DHCPCD_TEST) {
 		iface->addr.s_addr = iface->state->options->req_addr.s_addr;
