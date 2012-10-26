@@ -26,8 +26,10 @@
 
 #include <arpa/inet.h>
 
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 
 #include <dbus/dbus.h>
 
@@ -35,6 +37,47 @@
 #include "dbus-dict.h"
 
 #define S_EINVAL	DHCPCD_SERVICE ".InvalidArgument"
+
+static dbus_bool_t
+append_sanitized_string(DBusMessageIter *iter, const char *value)
+{
+	dbus_bool_t ret;
+	int len = strlen(value);
+	char *sanitized_value = malloc(len + 1);
+	dbus_bool_t sanitize_was_invoked = FALSE;
+
+	if (sanitized_value != NULL) {
+		int i;
+		for (i = 0; i < len; i++) {
+			if (isascii(value[i]) || isprint(value[i]))
+				sanitized_value[i] = value[i];
+			else {
+				sanitize_was_invoked = TRUE;
+				sanitized_value[i] = '?';
+			}
+		}
+		sanitized_value[i] = '\0';
+		if (sanitize_was_invoked)
+			syslog(LOG_ERR, "DBus string parameter sanitization"
+                               " was invoked");
+	} else {
+		/*
+		 * Whoops!  malloc failed.  We could give up right now, but we
+		 * could also just pass the un-sanitized value on the
+		 * off-chance that we succeed.  If we don't we'll just crash
+		 * in dbus_message_iter_append_basic().
+		 */
+		sanitized_value = value;
+	}
+
+	ret = dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING,
+            &sanitized_value);
+
+	if (sanitized_value != value)
+		free(sanitized_value);
+
+	return ret;
+}
 
 static int
 append_config_value(DBusMessageIter *entry, int type,
@@ -73,8 +116,7 @@ append_config_value(DBusMessageIter *entry, int type,
 	case DBUS_TYPE_STRING:
 		dbus_message_iter_open_container(entry, DBUS_TYPE_VARIANT,
 		    DBUS_TYPE_STRING_AS_STRING, &var);
-		if (dbus_message_iter_append_basic(&var,
-			DBUS_TYPE_STRING, &data))
+		if (append_sanitized_string(&var, data))
 			retval = 0;
 		break;
 	case DBUS_TYPE_INT16:
@@ -160,8 +202,7 @@ append_config_array(DBusMessageIter *entry, int type, const char *data)
 			continue;
 		switch(type) {
 		case DBUS_TYPE_STRING:
-			ok = dbus_message_iter_append_basic(&array,
-			    DBUS_TYPE_STRING, &tok);
+			ok = append_sanitized_string(&array, tok);
 			break;
 		case DBUS_TYPE_UINT32:
 			if (strchr(tok, '.') != NULL &&
@@ -199,7 +240,7 @@ dict_append_config_item(DBusMessageIter *iter, const struct o_dbus *op,
 	    DBUS_TYPE_DICT_ENTRY,
 	    NULL,
 	    &entry);
-	dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &op->name);
+	append_sanitized_string(&entry, op->name);
 	if (op->type == DBUS_TYPE_ARRAY)
 		retval = append_config_array(&entry, op->sub_type, data);
 	else
