@@ -160,6 +160,7 @@ static const struct dhcp_opt const dhcp_opts[] = {
 	{ 114,	STRING,		"default_url" },
 	{ 118,	IPV4,		"subnet_selection" },
 	{ 119,	STRING | RFC3397,	"domain_search" },
+	{ 252,	STRING,		"wpad_url" },
 	{ 0, 0, NULL }
 };
 
