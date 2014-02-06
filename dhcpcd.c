@@ -285,11 +285,11 @@ send_message(struct interface *iface, int type,
 		    iface->name, get_dhcp_op(type), state->xid);
 	else {
 		if (state->interval == 0)
-			state->interval = 4;
+			state->interval = DHCP_BASE;
 		else {
 			state->interval *= 2;
-			if (state->interval > 64)
-				state->interval = 64;
+			if (state->interval > DHCP_MAX)
+				state->interval = DHCP_MAX;
 		}
 		tv.tv_sec = state->interval + DHCP_RAND_MIN;
 		tv.tv_usec = arc4random() % (DHCP_RAND_MAX_U - DHCP_RAND_MIN_U);
