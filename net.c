@@ -719,6 +719,8 @@ valid_udp_packet(const uint8_t *data, size_t data_len, struct in_addr *from)
 	uint16_t bytes, udpsum;
 
 	if (data_len < sizeof(packet.ip)) {
+		syslog(LOG_WARNING, "packet shorter than an ip header "
+                    "(len=%zd)", data_len);
 		if (from)
 			from->s_addr = INADDR_ANY;
 		errno = EINVAL;
@@ -728,16 +730,20 @@ valid_udp_packet(const uint8_t *data, size_t data_len, struct in_addr *from)
 	if (from)
 		from->s_addr = packet.ip.ip_src.s_addr;
 	if (data_len > sizeof(packet)) {
+		syslog(LOG_WARNING, "packet too long (%zd bytes)", data_len);
 		errno = EINVAL;
 		return -1;
 	}
 	if (checksum(&packet.ip, sizeof(packet.ip)) != 0) {
+		syslog(LOG_WARNING, "packet failed ip header checksum");
 		errno = EINVAL;
 		return -1;
 	}
 
 	bytes = ntohs(packet.ip.ip_len);
 	if (data_len < bytes) {
+		syslog(LOG_WARNING, "packet appears truncated "
+		    "(len=%zd, ip_len=%zd)", data_len, bytes);
 		errno = EINVAL;
 		return -1;
 	}
@@ -752,6 +758,7 @@ valid_udp_packet(const uint8_t *data, size_t data_len, struct in_addr *from)
 	packet.ip.ip_ttl = 0;
 	packet.ip.ip_sum = 0;
 	if (udpsum && checksum(&packet, bytes) != udpsum) {
+		syslog(LOG_WARNING, "packet failed udp checksum");
 		errno = EINVAL;
 		return -1;
 	}
