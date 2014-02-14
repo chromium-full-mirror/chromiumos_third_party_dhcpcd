@@ -281,7 +281,7 @@ send_message(struct interface *iface, int type,
 	struct timeval tv;
 
 	if (!callback)
-		syslog(LOG_DEBUG, "%s: sending %s with xid 0x%x",
+		syslog(LOG_INFO, "%s: sending %s with xid 0x%x",
 		    iface->name, get_dhcp_op(type), state->xid);
 	else {
 		if (state->interval == 0)
@@ -293,7 +293,7 @@ send_message(struct interface *iface, int type,
 		}
 		tv.tv_sec = state->interval + DHCP_RAND_MIN;
 		tv.tv_usec = arc4random() % (DHCP_RAND_MAX_U - DHCP_RAND_MIN_U);
-		syslog(LOG_DEBUG,
+		syslog(LOG_INFO,
 		    "%s: sending %s (xid 0x%x), next in %0.2f seconds",
 		    iface->name, get_dhcp_op(type), state->xid,
 		    timeval_to_double(&tv));
@@ -486,6 +486,9 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 	/* We may have found a BOOTP server */
 	if (get_option_uint8(&type, dhcp, DHO_MESSAGETYPE) == -1) 
 		type = 0;
+
+        syslog(LOG_INFO, "%s: received %s with xid 0x%x",
+            iface->name, get_dhcp_op(type), dhcp->xid);
 
 	if (type == DHCP_NAK) {
 		/* For NAK, only check if we require the ServerID */
