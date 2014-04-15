@@ -491,13 +491,6 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
             iface->name, get_dhcp_op(type), dhcp->xid);
 
 	if (type == DHCP_NAK) {
-		/* For NAK, only check if we require the ServerID */
-		if (has_option_mask(ifo->requiremask, DHO_SERVERID) &&
-		    get_option_addr(&addr, dhcp, DHO_SERVERID) == -1)
-		{
-			log_dhcp(LOG_WARNING, "reject NAK", iface, dhcp, from);
-			return;
-		}
 		/* We should restart on a NAK */
 		log_dhcp(LOG_WARNING, "NAK:", iface, dhcp, from);
 		if (!(options & DHCPCD_TEST)) {
