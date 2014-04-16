@@ -81,12 +81,15 @@
 
 extern const struct option cf_options[];
 
+/* The number of bytes it takes to hold a flag for each of the 256 options. */
+#define OPTION_MASK_SIZE (256 / 8)
+
 struct if_options {
 	int metric;
-	uint8_t requestmask[256 / 8];
-	uint8_t requiremask[256 / 8];
-	uint8_t nomask[256 / 8];
-	uint8_t dstmask[256 / 8];
+	uint8_t requestmask[OPTION_MASK_SIZE];
+	uint8_t requiremask[OPTION_MASK_SIZE];
+	uint8_t nomask[OPTION_MASK_SIZE];
+	uint8_t dstmask[OPTION_MASK_SIZE];
 	uint32_t leasetime;
 	time_t timeout;
 	time_t reboot;

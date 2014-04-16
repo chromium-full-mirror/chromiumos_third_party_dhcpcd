@@ -215,6 +215,18 @@ bind_interface(void *arg)
 		else
 			state->reason = "BOUND";
 	}
+
+	if (state->old && state->old->yiaddr == state->new->yiaddr &&
+	    (state->state == DHS_REBOOT || state->state == DHS_RENEW ||
+	     state->state == DHS_REBIND)) {
+		/* Some DHCP servers respond to REQUEST with a subset
+		 * of the original requested parameters.  If they were not
+		 * supplied in the response to a renewal, we should assume
+		 * that it's reasonable to transfer them forward from the
+		 * original offer. */
+		merge_option_values(state->old, state->new, ifo->requestmask);
+	}
+
 	if (lease->leasetime == ~0U)
 		lease->renewaltime = lease->rebindtime = lease->leasetime;
 	else {

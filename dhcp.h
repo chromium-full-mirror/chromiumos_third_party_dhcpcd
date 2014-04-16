@@ -135,6 +135,10 @@ enum FQDN {
 /* Some crappy DHCP servers require the BOOTP minimum length */
 #define BOOTP_MESSAGE_LENTH_MIN 300
 
+/* Flags for the OPTIONSOVERLOADED field*/
+#define OPTION_OVERLOADED_BOOT_FILE 1
+#define OPTION_OVERLOADED_SERVER_NAME 2
+
 struct dhcp_message {
 	uint8_t op;           /* message type */
 	uint8_t hwtype;       /* hardware address type */
@@ -175,6 +179,14 @@ struct dhcp_server_info {
   unsigned char gw_hwaddr[HWADDR_LEN];
 } _packed;
 
+struct dhcp_option_iterator {
+  const struct dhcp_message *message;
+  const uint8_t *ptr;
+  const uint8_t *end;
+  uint8_t extra_option_locations;
+  uint8_t extra_option_locations_set;
+};
+
 #include "dhcpcd.h"
 #include "if-options.h"
 #include "net.h"
@@ -205,5 +217,11 @@ ssize_t write_lease(const struct interface *, const struct dhcp_message *);
 ssize_t read_lease(struct interface *, struct dhcp_message **);
 void get_lease(struct dhcp_lease *, const struct dhcp_message *);
 int get_server_info(struct dhcp_server_info *, const struct dhcp_message *);
+void init_option_iterator(const struct dhcp_message *,
+    struct dhcp_option_iterator *);
+int iterate_next_option(struct dhcp_option_iterator *, uint8_t *, uint8_t *,
+    const uint8_t **);
+void merge_option_values(const struct dhcp_message *, struct dhcp_message *,
+    uint8_t *);
 
 #endif

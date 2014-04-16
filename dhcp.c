@@ -37,6 +37,7 @@
 #include "config.h"
 #include "common.h"
 #include "dhcp.h"
+#include "if-options.h"
 
 #define REQUEST	(1 << 0)
 #define UINT8	(1 << 1)
@@ -1164,8 +1165,8 @@ read_lease(struct interface *iface, struct dhcp_message **dhcpp)
 	if (iface->server_info.gw_hwlen != iface->hwlen) {
 		syslog(LOG_ERR, "%s: lease file %s has incompatible MAC address"
 		       " length %d (expected %zd)", iface->name,
-                       iface->leasefile, iface->server_info.gw_hwlen,
-                       iface->hwlen);
+		       iface->leasefile, iface->server_info.gw_hwlen,
+		       iface->hwlen);
 		memset(&iface->server_info, 0, sizeof(iface->server_info));
 	}
 
@@ -1469,4 +1470,127 @@ get_lease(struct dhcp_lease *lease, const struct dhcp_message *dhcp)
 		lease->rebindtime = 0;
 	if (get_option_addr(&lease->server, dhcp, DHO_SERVERID) != 0)
 		lease->server.s_addr = INADDR_ANY;
+}
+
+void init_option_iterator(const struct dhcp_message *message,
+    struct dhcp_option_iterator *iterator)
+{
+	iterator->message = message;
+	iterator->ptr = message->options;
+	iterator->end = iterator->ptr + sizeof(message->options);
+	iterator->extra_option_locations = 0;
+	iterator->extra_option_locations_set = 0;
+}
+
+int iterate_next_option(struct dhcp_option_iterator *iterator,
+    uint8_t *option, uint8_t *length, const uint8_t **value)
+{
+	uint8_t option_code;
+	uint8_t option_len;
+
+	/* Process special DHO_PAD and DHO_END opcodes. */
+	while (iterator->ptr < iterator->end) {
+		if (*iterator->ptr == DHO_PAD) {
+			iterator->ptr++;
+			continue;
+		}
+
+		if (*iterator->ptr != DHO_END)
+			break;
+
+		if (iterator->extra_option_locations &
+		    OPTION_OVERLOADED_BOOT_FILE) {
+			iterator->extra_option_locations &=
+				~OPTION_OVERLOADED_BOOT_FILE;
+			iterator->ptr = iterator->message->bootfile;
+			iterator->end = iterator->ptr +
+			    sizeof(iterator->message->bootfile);
+		} else if (iterator->extra_option_locations &
+		    OPTION_OVERLOADED_SERVER_NAME) {
+			iterator->extra_option_locations &=
+				~OPTION_OVERLOADED_SERVER_NAME;
+			iterator->ptr = iterator->message->servername;
+			iterator->end = iterator->ptr +
+			    sizeof(iterator->message->servername);
+		} else
+			return 0;
+	}
+
+	if (iterator->ptr + 2 > iterator->end)
+		return 0;
+
+	option_code = *iterator->ptr++;
+	option_len = *iterator->ptr++;
+	if (iterator->ptr + option_len > iterator->end)
+		return 0;
+
+	if (option_code == DHO_OPTIONSOVERLOADED && option_len > 0 &&
+	    !iterator->extra_option_locations_set) {
+		iterator->extra_option_locations = *iterator->ptr;
+		iterator->extra_option_locations_set = 1;
+	}
+
+	if (option)
+		*option = option_code;
+	if (length)
+		*length = option_len;
+	if (value)
+		*value = iterator->ptr;
+
+	iterator->ptr += option_len;
+
+	return 1;
+}
+
+void merge_option_values(const struct dhcp_message *src,
+    struct dhcp_message *dst, uint8_t *copy_options)
+{
+	uint8_t supplied_options[OPTION_MASK_SIZE];
+	struct dhcp_option_iterator dst_iterator;
+	struct dhcp_option_iterator src_iterator;
+	uint8_t option;
+	const uint8_t *option_value;
+	uint8_t option_length;
+	uint8_t *out;
+	const uint8_t *out_end;
+	int added_options = 0;
+
+	/* Traverse the destination message for options already supplied. */
+	memset(&supplied_options, 0, sizeof(supplied_options));
+	init_option_iterator(dst, &dst_iterator);
+	while (iterate_next_option(&dst_iterator, &option, NULL, NULL)) {
+		add_option_mask(supplied_options, option);
+	}
+
+	/* We will start merging options at the end of the last block
+	 * the iterator traversed to.  The const cast below is safe since
+	 * this points to data within the (non-const) dst message. */
+	out = (uint8_t *) dst_iterator.ptr;
+	out_end = dst_iterator.end;
+
+	init_option_iterator(src, &src_iterator);
+	while (iterate_next_option(&src_iterator, &option, &option_length,
+				   &option_value)) {
+		if (has_option_mask(supplied_options, option) ||
+		    !has_option_mask(copy_options, option))
+			continue;
+		/* We need space for this option, plus a trailing DHO_END. */
+		if (out + option_length + 3 > out_end) {
+			syslog(LOG_ERR,
+			       "%s: unable to fit option %d (length %d)",
+			       __func__, option, option_length);
+			continue;
+		}
+		*out++ = option;
+		*out++ = option_length;
+		memcpy(out, option_value, option_length);
+		out += option_length;
+		added_options++;
+	}
+
+	if (added_options) {
+		*out++ = DHO_END;
+		syslog(LOG_INFO, "carrying over %d options from original offer",
+		       added_options);
+	}
 }
