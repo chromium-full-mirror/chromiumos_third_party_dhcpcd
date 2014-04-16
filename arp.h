@@ -48,4 +48,5 @@ void send_arp_probe(void *);
 int start_arpself(struct interface *);
 int start_arpgw(struct interface *);
 void start_arping(struct interface *);
+int start_unicast_arp(struct interface *);
 #endif

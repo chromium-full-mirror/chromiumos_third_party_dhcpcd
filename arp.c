@@ -35,6 +35,7 @@
 #include "arp.h"
 #include "bind.h"
 #include "common.h"
+#include "configure.h"
 #include "dhcpcd.h"
 #include "eloop.h"
 #include "if-options.h"

@@ -43,38 +43,39 @@ append_sanitized_string(DBusMessageIter *iter, const char *value)
 {
 	dbus_bool_t ret;
 	int len = strlen(value);
-	char *sanitized_value = malloc(len + 1);
-	dbus_bool_t sanitize_was_invoked = FALSE;
+	char *sanitized_value = NULL;
+	int i;
 
-	if (sanitized_value != NULL) {
-		int i;
-		for (i = 0; i < len; i++) {
-			if (isascii(value[i]) || isprint(value[i]))
+	for (i = 0; i < len; i++) {
+		if (isascii(value[i]) || isprint(value[i])) {
+			if (sanitized_value)
 				sanitized_value[i] = value[i];
-			else {
-				sanitize_was_invoked = TRUE;
-				sanitized_value[i] = '?';
+		} else {
+			if (sanitized_value == NULL) {
+				sanitized_value = malloc(len + 1);
+				if (sanitized_value == NULL) {
+					syslog(LOG_ERR, "DBus string parameter "
+					       "sanitization failed due to "
+					       "malloc failure");
+					return FALSE;
+				}
+				memcpy(sanitized_value, value, i);
 			}
+			sanitized_value[i] = '?';
 		}
-		sanitized_value[i] = '\0';
-		if (sanitize_was_invoked)
-			syslog(LOG_ERR, "DBus string parameter sanitization"
-                               " was invoked");
-	} else {
-		/*
-		 * Whoops!  malloc failed.  We could give up right now, but we
-		 * could also just pass the un-sanitized value on the
-		 * off-chance that we succeed.  If we don't we'll just crash
-		 * in dbus_message_iter_append_basic().
-		 */
-		sanitized_value = value;
 	}
+	if (sanitized_value) {
+		syslog(LOG_ERR, "DBus string parameter sanitization"
+                       " was invoked");
+		sanitized_value[i] = '\0';
+		ret = dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING,
+	            &sanitized_value);
 
-	ret = dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING,
-            &sanitized_value);
-
-	if (sanitized_value != value)
 		free(sanitized_value);
+	} else {
+		ret = dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING,
+	            &value);
+	}
 
 	return ret;
 }

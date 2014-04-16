@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #include <dbus/dbus.h>
 
@@ -71,7 +72,7 @@ static const char dhcpcd_introspection_xml[] =
     "      <arg name=\"status\" type=\"us\"/>\n"
     "    </signal>\n";
 
-static const struct o_dbus const dhos[] = {
+static const struct o_dbus dhos[] = {
 	{ "ip_address=", DBUS_TYPE_UINT32, 0, "IPAddress" },
 	{ "server_name=", DBUS_TYPE_STRING, 0, "ServerName"},
 	{ "subnet_mask=", DBUS_TYPE_UINT32, 0, "SubnetMask" },
@@ -292,7 +293,7 @@ dhcpcd_dbus_signal_status(const char *status)
 	dbus_message_unref(msg);
 }
 
-static void
+static dbus_bool_t
 dhcpcd_dbus_send_message(const struct interface *ifp, const char *reason,
     const char *prefix, struct dhcp_message *message)
 {
@@ -303,13 +304,14 @@ dhcpcd_dbus_send_message(const struct interface *ifp, const char *reason,
 	char **env;
 	ssize_t e, elen;
 	int retval;
+	int success = FALSE;
 
 	syslog(LOG_INFO, "event %s on interface %s", reason, ifp->name);
 
 	msg = dbus_message_new_signal(DHCPCD_PATH, DHCPCD_SERVICE, "Event");
 	if (msg == NULL) {
 		syslog(LOG_ERR, "failed to make a configure message");
-		return;
+		return FALSE;
 	}
 	dbus_message_iter_init_append(msg, &args);
 	dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &pid);
@@ -338,11 +340,14 @@ dhcpcd_dbus_send_message(const struct interface *ifp, const char *reason,
 	/* XXX reclaim env */
 	dbus_message_iter_close_container(&args, &dict);
 	if (retval == 0) {
-		if (!dbus_connection_send(connection, msg, NULL))
+		success = dbus_connection_send(connection, msg, NULL);
+		if (!success)
 			syslog(LOG_ERR, "failed to send dhcp to dbus");
 	} else
 		syslog(LOG_ERR, "failed to construct dbus message");
 	dbus_message_unref(msg);
+
+	return success;
 }
 
 void
@@ -666,7 +671,8 @@ configure(struct interface *ifp)
 
 int
 notify_unicast_arp(struct interface *ifp) {
-	dhcpcd_dbus_send_message(ifp, "GATEWAY-ARP", "saved_", ifp->state->offer);
+	return dhcpcd_dbus_send_message(ifp, "GATEWAY-ARP", "saved_",
+					ifp->state->offer);
 }
 
 int

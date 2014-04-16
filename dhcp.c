@@ -67,7 +67,7 @@ struct dhcp_opt {
 	const char *var;
 };
 
-static const struct dhcp_opt const dhcp_opts[] = {
+static const struct dhcp_opt dhcp_opts[] = {
 	{ 1,	IPV4 | REQUEST,	"subnet_mask" },
 		/* RFC 3442 states that the CSR has to come before all other
 		 * routes. For completeness, we also specify static routes,
@@ -1163,7 +1163,7 @@ read_lease(struct interface *iface, struct dhcp_message **dhcpp)
 	memcpy(&iface->server_info, options_startp, sizeof(iface->server_info));
 	if (iface->server_info.gw_hwlen != iface->hwlen) {
 		syslog(LOG_ERR, "%s: lease file %s has incompatible MAC address"
-		       " length %d (expected %d)", iface->name,
+		       " length %d (expected %zd)", iface->name,
                        iface->leasefile, iface->server_info.gw_hwlen,
                        iface->hwlen);
 		memset(&iface->server_info, 0, sizeof(iface->server_info));
