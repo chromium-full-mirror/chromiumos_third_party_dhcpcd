@@ -11,7 +11,7 @@ CSTD?=		c99
 CFLAGS+=	-std=${CSTD}
 include config.mk
 
-FILES+=		dhcpcd.conf dhcpcd-minimal.conf dhcpcd-dbus.conf
+FILES+=		dhcpcd.conf dhcpcd-dbus.conf
 
 _DBUSCFLAGS_SH=	$(PKG_CONFIG) --cflags dbus-1
 _DBUSCFLAGS!=	${_DBUSCFLAGS_SH}
@@ -81,7 +81,6 @@ _confinstall:
 	# dhcpcd config file
 	${INSTALL} -d ${DESTDIR}${SYSCONFDIR}
 	${INSTALL} -m ${CONFMODE} dhcpcd.conf ${DESTDIR}${SYSCONFDIR}
-	${INSTALL} -m ${CONFMODE} dhcpcd-minimal.conf ${DESTDIR}${SYSCONFDIR}
 	# dhcpcd d-bus registration file (note file rename)
 	${INSTALL} -d ${DESTDIR}${DBUSDIR}
 	${INSTALL} -m ${CONFMODE} dhcpcd-dbus.conf \
