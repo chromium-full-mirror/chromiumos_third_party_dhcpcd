@@ -1775,9 +1775,10 @@ main(int argc, char **argv)
 			if (len == strlen(iface->name) &&
 			    strncmp(iface->name, ifv[i], len) == 0)
 				break;
-		if (!iface)
-			syslog(LOG_ERR, "%s: interface not found or invalid",
-			    ifv[i]);
+		if (!iface) {
+			syslog(LOG_ERR, "%.*s: interface not found or invalid",
+                            len, ifv[i]);
+                }
 	}
 	if (!ifaces) {
 		if (ifc == 0)

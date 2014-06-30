@@ -485,7 +485,15 @@ discover_interfaces(int argc, char * const *argv)
 			ifs = ifp;
 		ifl = ifp;
 	}
-	freeifaddrs(ifaddrs);
+
+        if (!ifs) {
+          syslog(LOG_INFO, "%s: no matching interfaces", __func__);
+          for (ifa = ifaddrs; ifa; ifa = ifa->ifa_next) {
+            syslog(LOG_INFO, "%s: considered %s", __func__, ifa->ifa_name);
+          }
+        }
+
+        freeifaddrs(ifaddrs);
 	return ifs;
 }
 
