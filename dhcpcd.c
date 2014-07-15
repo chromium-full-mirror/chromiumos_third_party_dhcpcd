@@ -491,18 +491,9 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
             iface->name, get_dhcp_op(type), dhcp->xid);
 
 	if (type == DHCP_NAK) {
-		/* We should restart on a NAK */
-		log_dhcp(LOG_WARNING, "NAK:", iface, dhcp, from);
-		if (!(options & DHCPCD_TEST)) {
-			drop_config(iface, "NAK");
-			unlink(iface->leasefile);
-		}
-		close_sockets(iface);
-		/* If we constantly get NAKS then we should slowly back off */
-		add_timeout_sec(state->nakoff, start_interface, iface);
-		state->nakoff *= 2;
-		if (state->nakoff > NAKOFF_MAX)
-			state->nakoff = NAKOFF_MAX;
+		/* Wait for a DHCP listen interval before accepting this NAK */
+		log_dhcp(LOG_WARNING, "NAK (deferred):", iface, dhcp, from);
+		add_timeout_sec(DHCP_BASE, handle_nak, iface);
 		return;
 	}
 
@@ -555,6 +546,7 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 			exit(EXIT_SUCCESS);
 		}
 		delete_timeout(send_discover, iface);
+		delete_timeout(handle_nak, iface);
 		/* We don't request BOOTP addresses */
 		if (type) {
 			/* We used to ARP check here, but that seems to be in
@@ -695,6 +687,27 @@ handle_dhcp_packet(void *arg)
 	}
 	free(packet);
 	free(dhcp);
+}
+
+void
+handle_nak(void *arg)
+{
+	struct interface *iface = arg;
+	struct if_state *state = iface->state;
+
+	syslog(LOG_INFO, "%s: Handling deferred NAK", iface->name);
+	if (!(options & DHCPCD_TEST)) {
+		drop_config(iface, "NAK");
+		unlink(iface->leasefile);
+	}
+	close_sockets(iface);
+	delete_timeout(NULL, iface);
+
+	/* If we constantly get NAKS then we should slowly back off */
+	add_timeout_sec(state->nakoff, start_interface, iface);
+	state->nakoff *= 2;
+	if (state->nakoff > NAKOFF_MAX)
+		state->nakoff = NAKOFF_MAX;
 }
 
 void
