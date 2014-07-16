@@ -76,6 +76,8 @@ struct if_state {
 	int probes;
 	int claims;
 	int conflicts;
+	int nak_receive_count;
+	int failed_address_offer_count;
 	time_t defend;
 	struct in_addr fail;
 	size_t arping_index;

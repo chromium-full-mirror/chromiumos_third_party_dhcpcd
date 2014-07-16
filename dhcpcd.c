@@ -493,7 +493,9 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 	if (type == DHCP_NAK) {
 		/* Wait for a DHCP listen interval before accepting this NAK */
 		log_dhcp(LOG_WARNING, "NAK (deferred):", iface, dhcp, from);
-		add_timeout_sec(DHCP_BASE, handle_nak, iface);
+		if (state->nak_receive_count == 0)
+			add_timeout_sec(DHCP_BASE, handle_nak, iface);
+		state->nak_receive_count++;
 		return;
 	}
 
@@ -527,6 +529,16 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 	if ((type == 0 || type == DHCP_OFFER) &&
 	    state->state == DHS_DISCOVER)
 	{
+		if (dhcp->yiaddr == iface->state->fail.s_addr &&
+		    iface->state->failed_address_offer_count == 0)
+		{
+			log_dhcp(LOG_WARNING,
+			    "reject previously declined address",
+			    iface, dhcp, from);
+			iface->state->failed_address_offer_count++;
+			return;
+		}
+
 		lease->frominfo = 0;
 		lease->addr.s_addr = dhcp->yiaddr;
 		if (type == 0 ||
@@ -594,7 +606,10 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 	 * follows by an invalid NAK. */
 	close_sockets(iface);
 
-	if ((ifo->options & DHCPCD_ARP) != 0 && start_arpself(iface) != 0)
+	if (((ifo->options & DHCPCD_ARP) != 0 ||
+	      state->nak_receive_count > 0 ||
+	      dhcp->yiaddr == iface->state->fail.s_addr) &&
+	    start_arpself(iface) != 0)
 		return;
 
 	if ((ifo->options & DHCPCD_ARPGW) != 0 && start_arpgw(iface) != 0)
@@ -890,6 +905,8 @@ start_discover(void *arg)
 
 	iface->state->state = DHS_DISCOVER;
 	iface->state->xid = dhcp_xid(iface);
+	iface->state->nak_receive_count = 0;
+	iface->state->failed_address_offer_count = 0;
 	delete_timeout(NULL, iface);
 	if (ifo->fallback)
 		add_timeout_sec(ifo->timeout, start_fallback, iface);
@@ -913,6 +930,7 @@ start_request(void *arg)
 	syslog(LOG_INFO, "%s: requesting lease of %s",
 	    iface->name, inet_ntoa(iface->state->lease.addr));
 	iface->state->state = DHS_REQUEST;
+	iface->state->nak_receive_count = 0;
 	send_request(iface);
 }
 
@@ -925,6 +943,7 @@ start_renew(void *arg)
 	    iface->name, inet_ntoa(iface->state->lease.addr));
 	iface->state->state = DHS_RENEW;
 	iface->state->xid = dhcp_xid(iface);
+	iface->state->nak_receive_count = 0;
 	send_renew(iface);
 }
 
@@ -938,6 +957,7 @@ start_rebind(void *arg)
 	iface->state->state = DHS_REBIND;
 	delete_timeout(send_renew, iface);
 	iface->state->lease.server.s_addr = 0;
+	iface->state->nak_receive_count = 0;
 	send_rebind(iface);
 }
 
