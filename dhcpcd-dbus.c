@@ -665,6 +665,9 @@ configure(struct interface *ifp)
 
 		if (write_lease(ifp, ifp->state->new) == -1)
 			syslog(LOG_ERR, "write_lease: %m");
+		dhcpcd_dbus_signal_status("Bound");
+	} else {
+		dhcpcd_dbus_signal_status("Release");
 	}
 	return 0;
 }

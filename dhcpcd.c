@@ -493,6 +493,7 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 	if (type == DHCP_NAK) {
 		/* Wait for a DHCP listen interval before accepting this NAK */
 		log_dhcp(LOG_WARNING, "NAK (deferred):", iface, dhcp, from);
+		dhcpcd_dbus_signal_status("NakDefer");
 		if (state->nak_receive_count == 0)
 			add_timeout_sec(DHCP_BASE, handle_nak, iface);
 		state->nak_receive_count++;
@@ -520,6 +521,7 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 	{
 		log_dhcp(LOG_WARNING, "reject invalid address",
 		    iface, dhcp, from);
+		dhcpcd_dbus_signal_status("IgnoreInvalidOffer");
 		return;
 	}
 
@@ -535,6 +537,7 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 			log_dhcp(LOG_WARNING,
 			    "reject previously declined address",
 			    iface, dhcp, from);
+			dhcpcd_dbus_signal_status("IgnoreFailedOffer");
 			iface->state->failed_address_offer_count++;
 			return;
 		}
@@ -576,6 +579,7 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 		if (type == DHCP_OFFER) {
 			log_dhcp(LOG_INFO, "ignoring offer of", iface, dhcp,
 				 from);
+			dhcpcd_dbus_signal_status("IgnoreAdditionalOffer");
 			return;
 		}
 
@@ -583,6 +587,7 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 		if (type != DHCP_ACK) {
 			log_dhcp(LOG_ERR, "not ACK or OFFER", iface, dhcp,
 				 from);
+			dhcpcd_dbus_signal_status("IgnoreNonOffer");
 			return;
 		}
 
@@ -609,11 +614,15 @@ handle_dhcp(struct interface *iface, struct dhcp_message **dhcpp,
 	if (((ifo->options & DHCPCD_ARP) != 0 ||
 	      state->nak_receive_count > 0 ||
 	      dhcp->yiaddr == iface->state->fail.s_addr) &&
-	    start_arpself(iface) != 0)
+	    start_arpself(iface) != 0) {
+		dhcpcd_dbus_signal_status("ArpSelf");
 		return;
+	}
 
-	if ((ifo->options & DHCPCD_ARPGW) != 0 && start_arpgw(iface) != 0)
+	if ((ifo->options & DHCPCD_ARPGW) != 0 && start_arpgw(iface) != 0) {
+		dhcpcd_dbus_signal_status("ArpGateway");
 		return;
+	}
 
 	bind_interface(iface);
 }
@@ -903,6 +912,7 @@ start_discover(void *arg)
 	struct interface *iface = arg;
 	struct if_options *ifo = iface->state->options;
 
+	dhcpcd_dbus_signal_status("Discover");
 	iface->state->state = DHS_DISCOVER;
 	iface->state->xid = dhcp_xid(iface);
 	iface->state->nak_receive_count = 0;
@@ -929,6 +939,7 @@ start_request(void *arg)
 
 	syslog(LOG_INFO, "%s: requesting lease of %s",
 	    iface->name, inet_ntoa(iface->state->lease.addr));
+	dhcpcd_dbus_signal_status("Request");
 	iface->state->state = DHS_REQUEST;
 	iface->state->nak_receive_count = 0;
 	send_request(iface);
@@ -941,6 +952,7 @@ start_renew(void *arg)
 
 	syslog(LOG_INFO, "%s: renewing lease of %s",
 	    iface->name, inet_ntoa(iface->state->lease.addr));
+	dhcpcd_dbus_signal_status("Renew");
 	iface->state->state = DHS_RENEW;
 	iface->state->xid = dhcp_xid(iface);
 	iface->state->nak_receive_count = 0;
@@ -954,6 +966,7 @@ start_rebind(void *arg)
 
 	syslog(LOG_ERR, "%s: failed to renew, attempting to rebind",
 	    iface->name);
+	dhcpcd_dbus_signal_status("Rebind");
 	iface->state->state = DHS_REBIND;
 	delete_timeout(send_renew, iface);
 	iface->state->lease.server.s_addr = 0;
@@ -1042,6 +1055,7 @@ start_inform(struct interface *iface)
 		start_static(iface);
 	}
 
+	dhcpcd_dbus_signal_status("Inform");
 	iface->state->state = DHS_INFORM;
 	iface->state->xid = dhcp_xid(iface);
 	send_inform(iface);
@@ -1081,6 +1095,7 @@ start_reboot(struct interface *iface)
 	}
 	if (ifo->options & DHCPCD_UNICAST_ARP)
 		start_unicast_arp(iface);
+	dhcpcd_dbus_signal_status("Reboot");
 	iface->state->state = DHS_REBOOT;
 	iface->state->xid = dhcp_xid(iface);
 	iface->state->lease.server.s_addr = 0;
