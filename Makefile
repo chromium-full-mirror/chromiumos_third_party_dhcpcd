@@ -26,7 +26,7 @@ DBUSDIR=	${SYSCONFDIR}/dbus-1/system.d
 # Linux needs librt
 _LIBRT_SH=	[ "$$(uname -s)" = "Linux" ] && echo "-lrt" || echo ""
 _LIBRT!=	${_LIBRT_SH}
-LIBRT?=		${_LIBRT}$(shell ${_LIBRT_SH})
+LIBRT?=		${_LIBRT} $(shell ${_LIBRT_SH})
 
 CFLAGS+=	${DBUSCFLAGS}
 LDADD+=		${DBUSLIBS} ${LIBRT}
