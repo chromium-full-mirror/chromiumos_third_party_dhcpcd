@@ -290,7 +290,8 @@ arp_probe1(void *arg)
 	    ifp->name, inet_ntoa(astate->addr),
 	    astate->probes ? astate->probes : PROBE_NUM, PROBE_NUM,
 	    timespec_to_double(&tv));
-	if (arp_request(ifp, 0, astate->addr.s_addr) == -1)
+	if (arp_request(ifp, astate->src_addr.s_addr,
+			astate->addr.s_addr) == -1)
 		logerr(__func__);
 }
 

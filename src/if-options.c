@@ -150,6 +150,7 @@ const struct option cf_options[] = {
 	{"nooption",        required_argument, NULL, 'O'},
 	{"printpidfile",    no_argument,       NULL, 'P'},
 	{"require",         required_argument, NULL, 'Q'},
+	{"arpgw",           no_argument,       NULL, 'R'},
 	{"static",          required_argument, NULL, 'S'},
 	{"test",            no_argument,       NULL, 'T'},
 	{"dumplease",       no_argument,       NULL, 'U'},
@@ -1080,6 +1081,9 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 			logerrx("unknown option `%s'", arg);
 			return -1;
 		}
+		break;
+	case 'R':
+		ifo->options |= DHCPCD_ARPGW;
 		break;
 	case 'S':
 		ARG_REQUIRED;

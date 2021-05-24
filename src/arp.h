@@ -68,6 +68,7 @@ struct arp_state {
 	void (*conflicted_cb)(struct arp_state *, const struct arp_msg *);
 	void (*free_cb)(struct arp_state *);
 
+	struct in_addr src_addr;
 	struct in_addr addr;
 	int probes;
 	int claims;

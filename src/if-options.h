@@ -43,7 +43,7 @@
 /* Don't set any optional arguments here so we retain POSIX
  * compatibility with getopt */
 #define IF_OPTS "146bc:de:f:gh:i:j:kl:m:no:pqr:s:t:u:v:wxy:z:" \
-		"ABC:DEF:GHI:JKLMNO:PQ:S:TUVW:X:Z:"
+		"ABC:DEF:GHI:JKLMNO:PQ:RS:TUVW:X:Z:"
 #define NOERR_IF_OPTS		":" IF_OPTS
 
 #define DEFAULT_TIMEOUT		30
@@ -118,6 +118,7 @@
 #define DHCPCD_PRINT_PIDFILE		(1ULL << 59)
 #define DHCPCD_ONESHOT			(1ULL << 60)
 #define DHCPCD_INACTIVE			(1ULL << 61)
+#define DHCPCD_ARPGW			(1ULL << 62)
 
 #define DHCPCD_NODROP	(DHCPCD_EXITING | DHCPCD_PERSISTENT)
 
