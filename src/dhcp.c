@@ -1158,7 +1158,7 @@ write_lease(const struct interface *ifp, const struct bootp *bootp, size_t len)
 
 	logdebugx("%s: writing lease `%s'", ifp->name, state->leasefile);
 
-	fd = open(state->leasefile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	fd = open(state->leasefile, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (fd == -1)
 		return -1;
 
