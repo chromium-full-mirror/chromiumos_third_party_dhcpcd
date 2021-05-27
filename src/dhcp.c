@@ -2352,7 +2352,7 @@ dhcp_bind(struct interface *ifp)
 	    !(ifo->options & (DHCPCD_INFORM | DHCPCD_STATIC))) {
 		logdebugx("%s: writing lease: %s",
 		    ifp->name, state->leasefile);
-		if (dhcp_writefile(ifp->ctx, state->leasefile, 0640,
+		if (dhcp_writefile(ifp->ctx, state->leasefile, 0600,
 		    state->new, state->new_len) == -1)
 			logerr("dhcp_writefile: %s", state->leasefile);
 	}
