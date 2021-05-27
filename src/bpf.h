@@ -39,7 +39,8 @@ size_t bpf_frame_header_len(const struct interface *);
 int bpf_open(struct interface *, int (*)(struct interface *, int));
 int bpf_close(struct interface *, int);
 int bpf_attach(int, void *, unsigned int);
-ssize_t bpf_send(const struct interface *, int, uint16_t, const void *, size_t);
+ssize_t bpf_send(const struct interface *, int, uint16_t,
+		 const void *, size_t, const uint8_t *);
 ssize_t bpf_read(struct interface *, int, void *, size_t, unsigned int *);
 int bpf_arp(struct interface *, int);
 int bpf_bootp(struct interface *, int);

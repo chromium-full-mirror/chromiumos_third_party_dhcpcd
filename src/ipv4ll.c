@@ -292,8 +292,8 @@ ipv4ll_conflicted(struct arp_state *astate, const struct arp_msg *amsg)
 		if (timespeccmp(&defend, &now, >))
 			logwarnx("%s: IPv4LL %d second defence failed for %s",
 			    ifp->name, DEFEND_INTERVAL, state->addr->saddr);
-		else if (arp_request(ifp,
-		    state->addr->addr.s_addr, state->addr->addr.s_addr) == -1)
+		else if (arp_request(ifp, state->addr->addr.s_addr,
+                                     state->addr->addr.s_addr, NULL) == -1)
 			logerr(__func__);
 		else {
 			logdebugx("%s: defended IPv4LL address %s",

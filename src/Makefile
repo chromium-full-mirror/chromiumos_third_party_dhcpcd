@@ -50,7 +50,7 @@ all: ${TOP}/config.h ${PROG} ${SCRIPTS} ${MAN5} ${MAN8}
 dev:
 	cd dev && ${MAKE}
 
-.c.o: Makefile ${TOP}/config.mk
+%.o: %.c Makefile ${TOP}/config.mk
 	${CC} ${CFLAGS} ${CPPFLAGS} -c $< -o $@
 
 CLEANFILES+=	dhcpcd-embedded.h dhcpcd-embedded.c

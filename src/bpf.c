@@ -264,14 +264,17 @@ bpf_attach(int fd, void *filter, unsigned int filter_len)
 /* SunOS is special too - sending via BPF goes nowhere. */
 ssize_t
 bpf_send(const struct interface *ifp, int fd, uint16_t protocol,
-    const void *data, size_t len)
+    const void *data, size_t len, const uint8_t *dest_hw_addr)
 {
 	struct iovec iov[2];
 	struct ether_header eh;
 
 	switch(ifp->family) {
 	case ARPHRD_ETHER:
-		memset(&eh.ether_dhost, 0xff, sizeof(eh.ether_dhost));
+		if (dest_hw_addr)
+		    memcpy(&eh.ether_dhost, dest_hw_addr, ETHER_ADDR_LEN);
+		else
+		    memset(&eh.ether_dhost, 0xff, sizeof(eh.ether_dhost));
 		memcpy(&eh.ether_shost, ifp->hwaddr, sizeof(eh.ether_shost));
 		eh.ether_type = htons(protocol);
 		iov[0].iov_base = &eh;

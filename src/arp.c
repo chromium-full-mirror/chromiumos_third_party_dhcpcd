@@ -63,7 +63,8 @@
 __CTASSERT(sizeof(struct arphdr) == 8);
 
 ssize_t
-arp_request(const struct interface *ifp, in_addr_t sip, in_addr_t tip)
+arp_request(const struct interface *ifp, in_addr_t sip, in_addr_t tip,
+	    const uint8_t *dest_hw_addr)
 {
 	uint8_t arp_buffer[ARP_LEN];
 	struct arphdr ar;
@@ -94,11 +95,15 @@ arp_request(const struct interface *ifp, in_addr_t sip, in_addr_t tip)
 	APPEND(&ar, sizeof(ar));
 	APPEND(ifp->hwaddr, ifp->hwlen);
 	APPEND(&sip, sizeof(sip));
-	ZERO(ifp->hwlen);
+	if (dest_hw_addr)
+		APPEND(dest_hw_addr, ifp->hwlen);
+	else
+		ZERO(ifp->hwlen);
 	APPEND(&tip, sizeof(tip));
 
 	state = ARP_CSTATE(ifp);
-	return bpf_send(ifp, state->bpf_fd, ETHERTYPE_ARP, arp_buffer, len);
+	return bpf_send(ifp, state->bpf_fd, ETHERTYPE_ARP, arp_buffer,
+			len, dest_hw_addr);
 
 eexit:
 	errno = ENOBUFS;
@@ -274,6 +279,7 @@ arp_probe1(void *arg)
 	struct arp_state *astate = arg;
 	struct interface *ifp = astate->iface;
 	struct timespec tv;
+	uint8_t *dest_hwaddr = NULL;
 
 	if (++astate->probes < PROBE_NUM) {
 		tv.tv_sec = PROBE_MIN;
@@ -290,8 +296,10 @@ arp_probe1(void *arg)
 	    ifp->name, inet_ntoa(astate->addr),
 	    astate->probes ? astate->probes : PROBE_NUM, PROBE_NUM,
 	    timespec_to_double(&tv));
+	if (astate->dest_hwlen == ifp->hwlen)
+		dest_hwaddr = astate->dest_hwaddr;
 	if (arp_request(ifp, astate->src_addr.s_addr,
-			astate->addr.s_addr) == -1)
+			astate->addr.s_addr, dest_hwaddr) == -1)
 		logerr(__func__);
 }
 
@@ -343,7 +351,8 @@ arp_announce1(void *arg)
 		logdebugx("%s: ARP announcing %s (%d of %d)",
 		    ifp->name, inet_ntoa(astate->addr),
 		    astate->claims, ANNOUNCE_NUM);
-	if (arp_request(ifp, astate->addr.s_addr, astate->addr.s_addr) == -1)
+	if (arp_request(ifp, astate->addr.s_addr, astate->addr.s_addr,
+			NULL) == -1)
 		logerr(__func__);
 	eloop_timeout_add_sec(ifp->ctx->eloop, ANNOUNCE_WAIT,
 	    astate->claims < ANNOUNCE_NUM ? arp_announce1 : arp_announced,

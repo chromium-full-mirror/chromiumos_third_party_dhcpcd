@@ -73,6 +73,8 @@ struct arp_state {
 	int probes;
 	int claims;
 	struct in_addr failed;
+	uint8_t dest_hwlen;
+	unsigned char dest_hwaddr[HWADDR_LEN];
 };
 TAILQ_HEAD(arp_statehead, arp_state);
 
@@ -89,7 +91,8 @@ struct iarp_state {
 
 #ifdef ARP
 int arp_open(struct interface *);
-ssize_t arp_request(const struct interface *, in_addr_t, in_addr_t);
+ssize_t arp_request(const struct interface *, in_addr_t, in_addr_t,
+		    const uint8_t *dest_hw_addr);
 void arp_probe(struct arp_state *);
 void arp_report_conflicted(const struct arp_state *, const struct arp_msg *);
 struct arp_state *arp_new(struct interface *, const struct in_addr *);

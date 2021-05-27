@@ -207,8 +207,14 @@ get_option(struct dhcpcd_ctx *ctx,
 				overl = (uint8_t)(overl & ~2);
 				p = bootp->sname;
 				e = p + sizeof(bootp->sname);
-			} else
+			} else {
+				/* Explicit search for DHO_END so do not fail
+				 * and return pointer to option itself (there is
+				 * no length/data) */
+				if (opt == DHO_END)
+					op = p - 1;
 				goto exit;
+			}
 			/* No length to read */
 			continue;
 		}
@@ -1148,13 +1154,57 @@ write_lease(const struct interface *ifp, const struct bootp *bootp, size_t len)
 	int fd;
 	ssize_t bytes;
 	const struct dhcp_state *state = D_CSTATE(ifp);
+	const uint8_t *ptr;
 
 	logdebugx("%s: writing lease `%s'", ifp->name, state->leasefile);
 
 	fd = open(state->leasefile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1)
 		return -1;
+
+	/* We would like to save GW HW addrs together with the lease, so we'll
+	 * use private DHO_GWHWADDR extension for that.  The idea is to insert
+	 * this extra option at the end - if original offer ends with DHO_END
+	 * then squeze it just before pushing out DHO_END. Let's first find the
+	 * end of original offer: it is either DHO_GWHWADDR (if present) or
+	 * DHO_END (if present) or just the end of message. */
+	if (state->server_info.gw_hwlen != 0) {
+		ptr = get_option(ifp->ctx, bootp, len, DHO_GWHWADDR, NULL);
+		if (ptr)
+			/* Point to the beginning of GWADDR option */
+			ptr -= 2;
+		else
+			ptr = get_option(ifp->ctx, bootp, len, DHO_END,
+					 NULL);
+		if (ptr)
+			len = (size_t)(ptr - (const uint8_t*)bootp);
+		else {
+			/* Just in case we get an offer with options not
+			 * terminated by DHO_END strip possible padding at the
+			 * end. */
+			ptr = (const uint8_t*)bootp + len - 1;
+			while (*ptr-- == DHO_PAD)
+				--len;
+		}
+	}
+
 	bytes = write(fd, bootp, len);
+
+	if (state->server_info.gw_hwlen != 0) {
+		uint8_t gw_len = state->server_info.gw_hwlen;
+		uint8_t opt_buf[2 + HWADDR_LEN + 1] = { DHO_GWHWADDR, gw_len };
+
+		memcpy(opt_buf + 2, state->server_info.gw_hwaddr, gw_len);
+		/* Include option & length in gw_len. */
+		gw_len += 2;
+		/* Make sure opstions end with DHO_END (even if not present in
+		 * the original offer). */
+		opt_buf[gw_len] = DHO_END;
+		gw_len += 1;
+		if (write(fd, opt_buf, gw_len) < 0)
+			return -1;
+		bytes += gw_len;
+	}
 	close(fd);
 	return bytes;
 }
@@ -1168,6 +1218,8 @@ read_lease(struct interface *ifp, struct bootp **bootp)
 	struct bootp *lease;
 	size_t bytes;
 	uint8_t type;
+	const uint8_t *gw_hwaddr;
+	size_t gw_len;
 #ifdef AUTH
 	const uint8_t *auth;
 	size_t auth_len;
@@ -1248,6 +1300,21 @@ read_lease(struct interface *ifp, struct bootp **bootp)
 		return 0;
 	}
 #endif
+        /* Check for our DHO_GWHWADDR extension present but do not load values
+         * into state->server_info because the offer is not yet accepted (e.g it
+         * might be expired).  The value is used at the last moment - see
+         * start_unicast_arp().  The code below only checks validity. */
+	gw_hwaddr = get_option(ifp->ctx, (struct bootp *)lease, bytes,
+			       DHO_GWHWADDR, &gw_len);
+	if (gw_hwaddr) {
+		logdebugx("%s: found server info in lease '%s'",
+			  ifp->name, state->leasefile);
+		if (gw_len != ifp->hwlen)
+			logerrx("%s: lease file %s has incompatible"
+				"MAC address length %zu (expected %hhu)",
+				ifp->name, state->leasefile,
+				gw_len, ifp->hwlen);
+	}
 
 out:
 	*bootp = (struct bootp *)lease;
@@ -1821,7 +1888,7 @@ send_message(struct interface *ifp, uint8_t type,
 		r = 0;
 	} else {
 		r = bpf_send(ifp, state->bpf_fd,
-		    ETHERTYPE_IP, (uint8_t *)udp, ulen);
+			     ETHERTYPE_IP, (uint8_t *)udp, ulen, NULL);
 		free(udp);
 	}
 	/* If we failed to send a raw packet this normally means
@@ -2048,10 +2115,22 @@ dhcp_rebind(void *arg)
 
 #ifdef ARP
 static void
+save_gateway_addr(struct interface *ifp, const uint8_t *gw_hwaddr)
+{
+	struct dhcp_state *state = D_STATE(ifp);
+	memcpy(state->server_info.gw_hwaddr, gw_hwaddr, ifp->hwlen);
+	state->server_info.gw_hwlen = ifp->hwlen;
+}
+
+static void
 dhcp_probe_gw_timeout(struct arp_state *astate) {
 	struct dhcp_state *state = D_STATE(astate->iface);
 
-	/* Allow ourselves to fail only once this way */
+	/* Ignore unicast ARP failures. */
+	if (astate->dest_hwlen)
+		return;
+
+	/* Probegw failure, allow ourselves to fail only once this way */
 	logerrx("%s: Probe gateway %s timed out ",
 		astate->iface->name, inet_ntoa(astate->addr));
 	astate->iface->options->options &= ~DHCPCD_ARPGW;
@@ -2078,14 +2157,22 @@ dhcp_probe_gw_response(struct arp_state *astate, const struct arp_msg *amsg)
 	    amsg &&
 	    amsg->tip.s_addr == astate->src_addr.s_addr &&
 	    amsg->sip.s_addr == astate->addr.s_addr) {
-		dhcp_close(astate->iface);
-		eloop_timeout_delete(astate->iface->ctx->eloop,
-				     NULL, astate->iface);
+		if (astate->dest_hwlen) {
+			/* Response to unicast ARP. */
+			/* TODO(zqiu): notify listener. */
+		} else {
+			/* Response to arpgw request. */
+			save_gateway_addr(astate->iface, amsg->sha);
+
+			dhcp_close(astate->iface);
+			eloop_timeout_delete(astate->iface->ctx->eloop,
+					     NULL, astate->iface);
 #ifdef IN_IFF_TENTATIVE
-		ipv4_finaliseaddr(astate->iface);
+			ipv4_finaliseaddr(astate->iface);
 #else
-		dhcp_bind(astate->iface);
+			dhcp_bind(astate->iface);
 #endif
+		}
 		arp_free(astate);
 	}
 }
@@ -2280,7 +2367,7 @@ dhcp_arp_announced(struct arp_state *state)
 	arp_free(state);
 //#endif
 }
-#endif
+#endif /* ARP */
 
 void
 dhcp_bind(struct interface *ifp)
@@ -2688,6 +2775,55 @@ dhcp_activeaddr(const struct interface *ifp, const struct in_addr *addr)
 }
 #endif
 
+#ifdef ARP
+static void
+start_unicast_arp(struct interface *ifp)
+{
+	struct dhcp_state *state = D_STATE(ifp);
+	struct in_addr gwa;
+	struct arp_state *astate;
+	const uint8_t *gw_hwaddr;
+	size_t gw_hwlen;
+
+	if (!state->offer)
+		return;
+
+	if (!state->lease.frominfo)
+		return;
+
+	/* We have a valid offer - check for the appended private extention
+	 * keeping GW HW address from previous probes. */
+	gw_hwaddr = get_option(ifp->ctx, state->offer, state->offer_len,
+			       DHO_GWHWADDR, &gw_hwlen);
+	if (! gw_hwaddr || gw_hwlen != ifp->hwlen)
+		return;
+
+	if (get_option_addr(ifp->ctx, &gwa, state->offer, state->offer_len,
+			    DHO_ROUTER))
+		return;
+
+	astate = arp_new(ifp, &gwa);
+	if (!astate)
+		return;
+	if (state->offer->yiaddr)
+		astate->src_addr.s_addr = state->offer->yiaddr;
+	else
+		astate->src_addr.s_addr = state->offer->ciaddr;
+	astate->probed_cb = dhcp_probe_gw_timeout;
+	astate->conflicted_cb = dhcp_probe_gw_response;
+	astate->dest_hwlen = ifp->hwlen;
+	memcpy(astate->dest_hwaddr, gw_hwaddr, ifp->hwlen);
+
+	arp_probe(astate);
+
+        /* Note that we don't have to invalidate our gateway address right now
+         * since we don't touch state->server_info upon reading of the lease and
+         * rebooting.  It should be invalid until we get the reply and store
+         * values from it.
+         */
+}
+#endif
+
 static void
 dhcp_reboot(struct interface *ifp)
 {
@@ -2717,12 +2853,15 @@ dhcp_reboot(struct interface *ifp)
 		dhcp_inform(ifp);
 		return;
 	}
-	if (ifo->reboot == 0 || state->offer == NULL) {
+	if (ifo->reboot == 0) {
 		dhcp_discover(ifp);
 		return;
 	}
-	if (!IS_DHCP(state->offer))
-		return;
+#ifdef ARP
+	if (ifo->options & DHCPCD_UNICAST_ARP) {
+		start_unicast_arp(ifp);
+	}
+#endif
 
 	loginfox("%s: rebinding lease of %s",
 	    ifp->name, inet_ntoa(state->lease.addr));

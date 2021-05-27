@@ -123,6 +123,8 @@ enum DHO {
 	DHO_MUDURL                 = 161, /* draft-ietf-opsawg-mud */
 	DHO_SIXRD                  = 212, /* RFC 5969 */
 	DHO_MSCSR                  = 249, /* MS code for RFC 3442 */
+	DHO_GWHWADDR               = 254, /* 224-254 are reserved for private use
+					     so use one for storing of GW HW address */
 	DHO_END                    = 255
 };
 
@@ -184,6 +186,12 @@ struct dhcp_lease {
 	uint32_t cookie;
 };
 
+/* Extra data about servers stored in the lease file after the dhcp_message */
+struct dhcp_server_info {
+	uint8_t gw_hwlen;
+	unsigned char gw_hwaddr[HWADDR_LEN];
+};
+
 enum DHS {
 	DHS_NONE,
 	DHS_INIT,
@@ -229,6 +237,7 @@ struct dhcp_state {
 #ifdef ARPING
 	ssize_t arping_index;
 #endif
+	struct dhcp_server_info server_info;
 };
 
 #ifdef INET
