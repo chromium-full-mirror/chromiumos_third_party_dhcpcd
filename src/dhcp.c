@@ -2978,6 +2978,30 @@ dhcp_redirect_dhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 }
 
 static void
+handle_nak(void *arg)
+{
+	struct interface *ifp = arg;
+	struct dhcp_state *state = D_STATE(ifp);
+
+	loginfox("%s: Handling deferred NAK", ifp->name);
+	if (!(ifp->ctx->options & DHCPCD_TEST)) {
+		dhcp_drop(ifp, "NAK");
+		dhcp_unlink(ifp->ctx, state->leasefile);
+	}
+
+	/* If we constantly get NAKS then we should slowly back off */
+	eloop_timeout_add_sec(ifp->ctx->eloop,
+			              state->nakoff, dhcp_discover, ifp);
+	if (state->nakoff == 0)
+		state->nakoff = 1;
+	else {
+		state->nakoff *= 2;
+		if (state->nakoff > NAKOFF_MAX)
+			state->nakoff = NAKOFF_MAX;
+	}
+}
+
+static void
 dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
     const struct in_addr *from)
 {
@@ -3153,31 +3177,17 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	}
 
 	if (type == DHCP_NAK) {
-		/* We should restart on a NAK */
-		LOGDHCP(LOG_WARNING, "NAK:");
-		if ((msg = get_option_string(ifp->ctx,
-		    bootp, bootp_len, DHO_MESSAGE)))
+		if ((msg = get_option_string(ifp->ctx, bootp,
+					                 bootp_len, DHO_MESSAGE)))
 		{
 			logwarnx("%s: message: %s", ifp->name, msg);
 			free(msg);
 		}
 		if (state->state == DHS_INFORM) /* INFORM should not be NAKed */
 			return;
-		if (!(ifp->ctx->options & DHCPCD_TEST)) {
-			dhcp_drop(ifp, "NAK");
-			dhcp_unlink(ifp->ctx, state->leasefile);
-		}
-
-		/* If we constantly get NAKS then we should slowly back off */
-		eloop_timeout_add_sec(ifp->ctx->eloop,
-		    state->nakoff, dhcp_discover, ifp);
-		if (state->nakoff == 0)
-			state->nakoff = 1;
-		else {
-			state->nakoff *= 2;
-			if (state->nakoff > NAKOFF_MAX)
-				state->nakoff = NAKOFF_MAX;
-		}
+        LOGDHCP(LOG_WARNING, "NAK (deferred)");
+		eloop_timeout_add_sec(ifp->ctx->eloop, DHCP_BASE,
+                              handle_nak, ifp);
 		return;
 	}
 
@@ -3338,6 +3348,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 			return;
 		}
 		eloop_timeout_delete(ifp->ctx->eloop, send_discover, ifp);
+		eloop_timeout_delete(ifp->ctx->eloop, handle_nak, ifp);
 		/* We don't request BOOTP addresses */
 		if (type) {
 			/* We used to ARP check here, but that seems to be in
