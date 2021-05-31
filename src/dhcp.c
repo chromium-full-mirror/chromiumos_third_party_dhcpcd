@@ -3153,15 +3153,6 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	}
 
 	if (type == DHCP_NAK) {
-		/* For NAK, only check if we require the ServerID */
-		if (has_option_mask(ifo->requiremask, DHO_SERVERID) &&
-		    get_option_addr(ifp->ctx, &addr,
-		    bootp, bootp_len, DHO_SERVERID) == -1)
-		{
-			LOGDHCP(LOG_WARNING, "reject NAK");
-			return;
-		}
-
 		/* We should restart on a NAK */
 		LOGDHCP(LOG_WARNING, "NAK:");
 		if ((msg = get_option_string(ifp->ctx,
