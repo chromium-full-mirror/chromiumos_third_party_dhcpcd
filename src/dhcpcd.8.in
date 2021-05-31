@@ -201,6 +201,12 @@ changes the routes to use the interface with the same route and the lowest
 metric.
 See options below for controlling which interfaces we allow and deny through
 the use of patterns.
+.Pp
+If an interface name is suffixed by an equal-sign, the text following the
+equal sign will be used instead of the interface name as the unique identifier
+for the DHCP lease file.  Doing so allows the caller to specify different
+lease files for the same interface (e.g, when switching the same wireless
+interface between different 802.11 networks).
 .Ss Hooking into events
 .Nm
 runs
@@ -821,7 +827,7 @@ Control socket to per interface daemon.
 .Xr dhcpcd-run-hooks 8 ,
 .Xr resolvconf 8
 .Sh STANDARDS
-RFC\ 951, RFC\ 1534, RFC\ 2104, RFC\ 2131, RFC\ 2132, RFC\ 2563, RFC\ 2855, 
+RFC\ 951, RFC\ 1534, RFC\ 2104, RFC\ 2131, RFC\ 2132, RFC\ 2563, RFC\ 2855,
 RFC\ 3004, RFC\ 3118, RFC\ 3203, RFC\ 3315, RFC\ 3361, RFC\ 3633, RFC\ 3396,
 RFC\ 3397, RFC\ 3442, RFC\ 3495, RFC\ 3925, RFC\ 3927, RFC\ 4039, RFC\ 4075,
 RFC\ 4242, RFC\ 4361, RFC\ 4390, RFC\ 4702, RFC\ 4074, RFC\ 4861, RFC\ 4833,

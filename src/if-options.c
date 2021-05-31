@@ -2512,7 +2512,7 @@ read_config(struct dhcpcd_ctx *ctx,
 				skip = 1;
 				continue;
 			}
-			if (ifname && strcmp(line, ifname) == 0)
+			if (ifname && if_namecmp(line, ifname, NULL) == 0)
 				skip = 0;
 			else
 				skip = 1;

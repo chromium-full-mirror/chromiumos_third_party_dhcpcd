@@ -1531,6 +1531,7 @@ main(int argc, char **argv)
 	int sig = 0;
 	const char *siga = NULL;
 #endif
+	char ifn[IF_NAMESIZE];
 
 	/* Test for --help and --version */
 	if (argc > 1) {
@@ -1727,12 +1728,11 @@ printpidfile:
 		 *  instance for that interface. */
 		if (optind == argc - 1 && !(ctx.options & DHCPCD_MASTER)) {
 			const char *per;
-			const char *ifname;
+			const char *ifname = if_namepart(ifn, *ctx.ifv);
 
-			ifname = *ctx.ifv;
-			if (ifname == NULL || strlen(ifname) > IF_NAMESIZE) {
-				errno = ifname == NULL ? EINVAL : E2BIG;
-				logerr("%s: ", ifname);
+			if (ifname == NULL) {
+				errno = EINVAL;
+				logerrx("missing or invalid interface name");
 				goto exit_failure;
 			}
 			/* Allow a dhcpcd interface per address family */
@@ -1811,7 +1811,7 @@ printpidfile:
 				goto exit_failure;
 			}
 			if (optind != argc)
-				strlcpy(ctx.pidfile, argv[optind],
+				strlcpy(ctx.pidfile, if_namepart(ifn, argv[optind]),
 				    sizeof(ctx.pidfile));
 			ifp->ctx = &ctx;
 			TAILQ_INSERT_HEAD(ctx.ifaces, ifp, next);
@@ -1857,7 +1857,8 @@ printpidfile:
 	{
 #endif
 		if (!(ctx.options & DHCPCD_MASTER))
-			ctx.control_fd = control_open(argv[optind]);
+			ctx.control_fd = control_open(
+				if_namepart(ifn, argv[optind]));
 		if (ctx.control_fd == -1)
 			ctx.control_fd = control_open(NULL);
 		if (ctx.control_fd != -1) {
@@ -1937,7 +1938,9 @@ printpidfile:
 	}
 #else
 	if (control_start(&ctx,
-	    ctx.options & DHCPCD_MASTER ? NULL : argv[optind]) == -1)
+			  ctx.options & DHCPCD_MASTER
+			  ? NULL : if_namepart(ifn, argv[optind]))
+	    == -1)
 	{
 		logerr("%s: control_start", __func__);
 		goto exit_failure;
@@ -1949,7 +1952,8 @@ printpidfile:
 
 #ifdef HAVE_SETPROCTITLE
 	setproctitle("%s%s%s",
-	    ctx.options & DHCPCD_MASTER ? "[master]" : argv[optind],
+	    ctx.options & DHCPCD_MASTER ? "[master]"
+					: if_namepart(ifn, argv[optind]),
 	    ctx.options & DHCPCD_IPV4 ? " [ip4]" : "",
 	    ctx.options & DHCPCD_IPV6 ? " [ip6]" : "");
 #endif
@@ -1983,7 +1987,7 @@ printpidfile:
 		if ((ifp = if_find(ctx.ifaces, ctx.ifv[i])) == NULL ||
 		    !ifp->active)
 			logerrx("%s: interface not found or invalid",
-			    ctx.ifv[i]);
+				if_namepart(ifn, ctx.ifv[i]));
 	}
 	TAILQ_FOREACH(ifp, ctx.ifaces, next) {
 		if (ifp->active == IF_ACTIVE_USER)

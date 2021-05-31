@@ -230,7 +230,7 @@ struct dhcp_state {
 	struct ipv4_addr *addr;
 	uint8_t added;
 
-	char leasefile[sizeof(LEASEFILE) + IF_NAMESIZE + (IF_SSIDLEN * 4)];
+	char leasefile[PATH_MAX];
 	struct timespec started;
 	unsigned char *clientid;
 	struct authstate auth;

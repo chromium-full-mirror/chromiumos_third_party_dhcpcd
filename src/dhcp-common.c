@@ -838,6 +838,14 @@ dhcp_set_leasefile(char *leasefile, size_t len, int family,
 		return 0;
 	}
 
+	if (strlen(ifp->lease_identifier) > 0) {
+		/* Only supports lease identifier for IPv4 for now. */
+		if (family == AF_INET) {
+			return snprintf(leasefile, len, LEASEFILE,
+					ifp->lease_identifier, "");
+		}
+	}
+
 	switch (family) {
 	case AF_INET:
 	case AF_INET6:
@@ -1070,7 +1078,7 @@ dhcp_read_lease_fd(int fd, void **lease)
 	size_t sz;
 	void *buf;
 	ssize_t len;
-	
+
 	if (fstat(fd, &st) != 0)
 		goto out;
 	if (!S_ISREG(st.st_mode)) {

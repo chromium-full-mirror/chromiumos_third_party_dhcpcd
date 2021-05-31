@@ -72,6 +72,21 @@
 #include "ipv6nd.h"
 #include "logerr.h"
 
+/* This utility function is used to work around case for lease file encoded in
+ * interface name after '='.  If the lease part is not present the 'name'
+ * argument is returned, otherwise the interface part is copied to the 'buf' and
+ * it is returned. */
+const char* if_namepart(char *buf, const char *name)
+{
+	const char *p;
+
+	if (name == NULL || (p = strchr(name, '=')) == NULL)
+		return name;
+
+	strlcpy(buf, name, MIN(IF_NAMESIZE, (size_t)(p - name + 1)));
+	return buf;
+}
+
 void
 if_free(struct interface *ifp)
 {
@@ -295,6 +310,25 @@ if_valid_hwaddr(const uint8_t *hwaddr, size_t hwlen)
 	return false;
 }
 
+/* This utility function is used to work around case for lease file encoded in
+ * interface name after '='.  It assumes proper name in first arg and possibly
+ * "extended" name as a second one.  As a side-effect when the name matches and
+ * there is lease file encoded it is returned in the last optional argument. */
+int if_namecmp(const char *if_name, const char *ext_name, const char **lease)
+{
+	const char *p = strchr(ext_name, '=');
+	int ret;
+
+	if (p) {
+		ret = strncmp(if_name, ext_name, (size_t)(p - ext_name));
+		if (ret == 0 && lease)
+			*lease = p + 1;
+		return ret;
+	}
+
+	return strcmp(if_name, ext_name);
+}
+
 struct if_head *
 if_discover(struct dhcpcd_ctx *ctx, struct ifaddrs **ifaddrs,
     int argc, char * const *argv)
@@ -305,6 +339,9 @@ if_discover(struct dhcpcd_ctx *ctx, struct ifaddrs **ifaddrs,
 	struct if_head *ifs;
 	struct interface *ifp;
 	struct if_spec spec;
+	char ifn[IF_NAMESIZE];
+	const char *lease_id = NULL;
+
 #ifdef AF_LINK
 	const struct sockaddr_dl *sdl;
 #ifdef SIOCGIFPRIORITY
@@ -363,7 +400,8 @@ if_discover(struct dhcpcd_ctx *ctx, struct ifaddrs **ifaddrs,
 
 		if (argc > 0) {
 			for (i = 0; i < argc; i++) {
-				if (strcmp(argv[i], spec.devname) == 0)
+				if (if_namecmp(spec.devname, argv[i],
+					       &lease_id) == 0)
 					break;
 			}
 			active = (i == argc) ? IF_INACTIVE : IF_ACTIVE_USER;
@@ -371,7 +409,8 @@ if_discover(struct dhcpcd_ctx *ctx, struct ifaddrs **ifaddrs,
 			/* -1 means we're discovering against a specific
 			 * interface, but we still need the below rules
 			 * to apply. */
-			if (argc == -1 && strcmp(argv[0], spec.devname) != 0)
+			if (argc == -1 && if_namecmp(spec.devname, argv[0],
+						     &lease_id) != 0)
 				continue;
 			active = ctx->options & DHCPCD_INACTIVE ?
 			    IF_INACTIVE: IF_ACTIVE_USER;
@@ -383,7 +422,8 @@ if_discover(struct dhcpcd_ctx *ctx, struct ifaddrs **ifaddrs,
 		if (i < ctx->ifdc)
 			active = IF_INACTIVE;
 		for (i = 0; i < ctx->ifc; i++)
-			if (fnmatch(ctx->ifv[i], spec.devname, 0) == 0)
+			if (fnmatch(if_namepart(ifn, ctx->ifv[i]),
+				    spec.devname, 0) == 0)
 				break;
 		if (ctx->ifc && i == ctx->ifc)
 			active = IF_INACTIVE;
@@ -420,6 +460,9 @@ if_discover(struct dhcpcd_ctx *ctx, struct ifaddrs **ifaddrs,
 		}
 		ifp->ctx = ctx;
 		strlcpy(ifp->name, spec.devname, sizeof(ifp->name));
+		if (lease_id)
+			strlcpy(ifp->lease_identifier, lease_id,
+				LEASE_IDENTIFIER_LEN);
 		ifp->flags = ifa->ifa_flags;
 
 		if (ifa->ifa_addr != NULL) {
@@ -599,16 +642,21 @@ if_nametospec(const char *ifname, struct if_spec *spec)
 {
 	char *ep;
 	int e;
+	size_t len;
 
-	if (ifname == NULL || *ifname == '\0' ||
-	    strlcpy(spec->ifname, ifname, sizeof(spec->ifname)) >=
-	    sizeof(spec->ifname) ||
-	    strlcpy(spec->drvname, ifname, sizeof(spec->drvname)) >=
-	    sizeof(spec->drvname))
-	{
-		errno = EINVAL;
-		return -1;
-	}
+	if (ifname == NULL || *ifname == '\0')
+		goto invalid;
+
+	ep = strchr(ifname, '=');
+	len = ep ? (size_t)(ep - ifname) : strlen(ifname);
+	len += 1; /* for ending NUL */
+
+	if (len > sizeof(spec->ifname) || len > sizeof(spec->drvname))
+		goto invalid;
+
+	strlcpy(spec->ifname, ifname, len);
+	strlcpy(spec->drvname, ifname, len);
+
 	ep = strchr(spec->drvname, ':');
 	if (ep) {
 		spec->lun = (int)strtoi(ep + 1, NULL, 10, 0, INT_MAX, &e);
@@ -624,16 +672,18 @@ if_nametospec(const char *ifname, struct if_spec *spec)
 	strlcpy(spec->devname, spec->drvname, sizeof(spec->devname));
 	while (ep > spec->drvname && isdigit((int)*ep))
 		ep--;
-	if (*ep++ == ':') {
-		errno = EINVAL;
-		return -1;
-	}
+	if (*ep++ == ':')
+		goto invalid;
 	spec->ppa = (int)strtoi(ep, NULL, 10, 0, INT_MAX, &e);
 	if (e != 0)
 		spec->ppa = -1;
 	*ep = '\0';
 
 	return 0;
+
+invalid:
+	errno = EINVAL;
+	return -1;
 }
 
 static struct interface *

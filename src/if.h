@@ -111,6 +111,14 @@ int if_getifaddrs(struct ifaddrs **);
 #define	getifaddrs	if_getifaddrs
 #endif
 
+/* Basically this is strcmp but 2nd name can be suffixed with '=' and lease
+ * name after it - this suffix is skipped for comparison. */
+int if_namecmp(const char *if_name, const char *ext_name, const char **lease);
+/* This utility returns just an interface name from "extended" name.  If the
+ * name is not "extended" it is returned otherwise initial part is copied to buf
+ * and it is returned. */
+const char* if_namepart(char *buf, const char *ext_name);
+
 int if_getflags(struct interface *ifp);
 int if_setflag(struct interface *ifp, short flag);
 #define if_up(ifp) if_setflag((ifp), (IFF_UP | IFF_RUNNING))

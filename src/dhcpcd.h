@@ -44,6 +44,7 @@
 #define IF_SSIDLEN	32
 #define PROFILE_LEN	64
 #define SECRET_LEN	64
+#define LEASE_IDENTIFIER_LEN (PATH_MAX - sizeof(LEASEFILE))
 
 #define IF_INACTIVE	0
 #define IF_ACTIVE	1
@@ -88,6 +89,7 @@ struct interface {
 	bool wireless;
 	uint8_t ssid[IF_SSIDLEN];
 	unsigned int ssid_len;
+        char lease_identifier[LEASE_IDENTIFIER_LEN];
 
 	char profile[PROFILE_LEN];
 	struct if_options *options;
