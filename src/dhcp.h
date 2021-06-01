@@ -237,6 +237,9 @@ struct dhcp_state {
 #ifdef ARPING
 	ssize_t arping_index;
 #endif
+	int nak_receive_count;
+	int failed_address_offer_count;
+	struct in_addr failed;
 };
 
 #ifdef INET

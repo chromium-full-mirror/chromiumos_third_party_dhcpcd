@@ -47,6 +47,7 @@
 #include "bpf.h"
 #include "ipv4.h"
 #include "common.h"
+#include "dhcp.h"
 #include "dhcpcd.h"
 #include "eloop.h"
 #include "if.h"
@@ -244,6 +245,7 @@ arp_packet(struct interface *ifp, uint8_t *data, size_t len,
 	const struct iarp_state *state;
 	struct arp_state *astate, *astaten;
 	uint8_t *hw_s, *hw_t;
+	struct dhcp_state *d_state;
 #ifndef KERNEL_RFC5227
 	bool is_probe;
 #endif /* KERNEL_RFC5227 */
@@ -321,6 +323,8 @@ arp_packet(struct interface *ifp, uint8_t *data, size_t len,
 	state = ARP_CSTATE(ifp);
 	if (state == NULL)
 		return;
+	d_state = D_STATE(ifp);
+	d_state->failed.s_addr = 0;
 	TAILQ_FOREACH_SAFE(astate, &state->arp_states, next, astaten) {
 		if (IN_ARE_ADDR_EQUAL(&arm.sip, &astate->addr) ||
 		    (IN_IS_ADDR_UNSPECIFIED(&arm.sip) &&

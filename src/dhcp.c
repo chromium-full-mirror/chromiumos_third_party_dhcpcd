@@ -1876,6 +1876,8 @@ dhcp_discover(void *arg)
 	struct if_options *ifo = ifp->options;
 
 	state->state = DHS_DISCOVER;
+	state->nak_receive_count = 0;
+	state->failed_address_offer_count = 0;
 	dhcp_new_xid(ifp);
 	eloop_timeout_delete(ifp->ctx->eloop, NULL, ifp);
 	if (!(state->added & STATE_EXPIRED)) {
@@ -1918,6 +1920,7 @@ dhcp_request(void *arg)
 	struct dhcp_state *state = D_STATE(ifp);
 
 	state->state = DHS_REQUEST;
+	state->nak_receive_count = 0;
 	// Handle the server being silent to our request.
 	eloop_timeout_add_sec(ifp->ctx->eloop, ifp->options->reboot,
 	    dhcp_requestfailed, ifp);
@@ -1977,6 +1980,7 @@ dhcp_startrenew(void *arg)
 	logdebugx("%s: renewing lease of %s", ifp->name,
 	    inet_ntoa(lease->addr));
 	state->state = DHS_RENEW;
+	state->nak_receive_count = 0;
 	dhcp_new_xid(ifp);
 	state->interval = 0;
 	send_renew(ifp);
@@ -2002,6 +2006,7 @@ dhcp_rebind(void *arg)
 	state->state = DHS_REBIND;
 	eloop_timeout_delete(ifp->ctx->eloop, send_renew, ifp);
 	state->lease.server.s_addr = INADDR_ANY;
+	state->nak_receive_count = 0;
 	state->interval = 0;
 	ifp->options->options &= ~(DHCPCD_CSR_WARNED |
 	    DHCPCD_ROUTER_HOST_ROUTE_WARNED);
@@ -2192,11 +2197,9 @@ dhcp_arp_found(struct arp_state *astate, const struct arp_msg *amsg)
 {
 	struct in_addr addr;
 	struct interface *ifp = astate->iface;
+	struct dhcp_state *state = D_STATE(ifp);
 #ifdef ARPING
-	struct dhcp_state *state;
 	struct if_options *ifo;
-
-	state = D_STATE(ifp);
 
 	ifo = ifp->options;
 	if (state->arping_index != -1 &&
@@ -2221,9 +2224,15 @@ dhcp_arp_found(struct arp_state *astate, const struct arp_msg *amsg)
 		dhcpcd_startinterface(ifp);
 		return;
 	}
-#else
-	UNUSED(amsg);
 #endif
+
+	if (amsg == NULL)
+		state->failed = astate->addr;
+	else if (state->offer &&
+		(amsg->sip.s_addr == state->offer->yiaddr ||
+		(amsg->sip.s_addr == 0 &&
+		amsg->tip.s_addr == state->offer->yiaddr)))
+		state->failed.s_addr = state->offer->yiaddr;
 
 	addr = astate->addr;
 	arp_free(astate);
@@ -2487,8 +2496,13 @@ dhcp_arp_address(struct interface *ifp)
 		return 0;
 	}
 #else
+	/* If we have received a NAK right before, or the offered address has
+	 * conflicted in the previous ARP probe, we want to validate the address
+	 * carefully using the "ARP for self" method. */
+	bool arp_disputed_addr = state->nak_receive_count > 0 ||
+		state->offer->yiaddr == state->failed.s_addr;
 	if (!(ifp->flags & IFF_NOARP) &&
-	    ifp->options->options & DHCPCD_ARP)
+	    (ifp->options->options & DHCPCD_ARP || arp_disputed_addr))
 	{
 		struct arp_state *astate;
 		struct dhcp_lease l;
@@ -2498,7 +2512,7 @@ dhcp_arp_address(struct interface *ifp)
 		if (astate == NULL)
 			return -1;
 
-		if (ia == NULL) {
+		if (ia == NULL || arp_disputed_addr) {
 			state->state = DHS_PROBE;
 			get_lease(ifp, &l, state->offer, state->offer_len);
 			loginfox("%s: probing address %s/%d",
@@ -3186,8 +3200,10 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 		if (state->state == DHS_INFORM) /* INFORM should not be NAKed */
 			return;
         LOGDHCP(LOG_WARNING, "NAK (deferred)");
-		eloop_timeout_add_sec(ifp->ctx->eloop, DHCP_BASE,
-                              handle_nak, ifp);
+		if (state->nak_receive_count == 0)
+			eloop_timeout_add_sec(ifp->ctx->eloop, DHCP_BASE,
+					      handle_nak, ifp);
+		state->nak_receive_count++;
 		return;
 	}
 
@@ -3302,6 +3318,12 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 
 	bootp_copied = false;
 	if ((type == 0 || type == DHCP_OFFER) && state->state == DHS_DISCOVER) {
+		if (bootp->yiaddr == state->failed.s_addr &&
+		    state->failed_address_offer_count == 0) {
+			LOGDHCP(LOG_WARNING, "reject previously declined address");
+			state->failed_address_offer_count++;
+			return;
+		}
 		lease->frominfo = 0;
 		lease->addr.s_addr = bootp->yiaddr;
 		memcpy(&lease->cookie, bootp->vend, sizeof(lease->cookie));
