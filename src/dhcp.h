@@ -139,6 +139,10 @@ enum FQDN {
 	FQDN_BOTH       = 0x31
 };
 
+/* Flags for the OPTIONSOVERLOADED field. */
+#define OPTION_OVERLOADED_BOOT_FILE 1
+#define OPTION_OVERLOADED_SERVER_NAME 2
+
 /* Sizes for BOOTP options */
 #define	BOOTP_CHADDR_LEN	 16
 #define	BOOTP_SNAME_LEN		 64
@@ -172,6 +176,14 @@ struct bootp_pkt
 	struct ip ip;
 	struct udphdr udp;
 	struct bootp bootp;
+};
+
+struct dhcp_option_iterator {
+	const struct bootp *bootp;
+	const uint8_t *ptr;
+	const uint8_t *end;
+	uint8_t extra_option_locations;
+	uint8_t extra_option_locations_set;
 };
 
 struct dhcp_lease {

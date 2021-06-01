@@ -2377,6 +2377,131 @@ dhcp_arp_announced(struct arp_state *state)
 }
 #endif /* ARP */
 
+static void
+init_option_iterator(const struct bootp *bootp,
+		     struct dhcp_option_iterator *iterator)
+{
+	iterator->bootp = bootp;
+	iterator->ptr = bootp->vend;
+	iterator->end = iterator->ptr + sizeof(bootp->vend);
+	iterator->extra_option_locations = 0;
+	iterator->extra_option_locations_set = 0;
+}
+
+static int
+iterate_next_option(struct dhcp_option_iterator *iterator,
+		    uint8_t *option, uint8_t *length, const uint8_t **value)
+{
+	uint8_t option_code;
+	uint8_t option_len;
+
+	/* Process special DHO_PAD and DHO_END opcodes. */
+	while (iterator->ptr < iterator->end) {
+		if (*iterator->ptr == DHO_PAD) {
+			iterator->ptr++;
+			continue;
+		}
+
+		if (*iterator->ptr != DHO_END)
+			break;
+
+		if (iterator->extra_option_locations &
+		    OPTION_OVERLOADED_BOOT_FILE) {
+			iterator->extra_option_locations &=
+				~OPTION_OVERLOADED_BOOT_FILE;
+			iterator->ptr = iterator->bootp->file;
+			iterator->end = iterator->ptr +
+				sizeof(iterator->bootp->file);
+		} else if (iterator->extra_option_locations &
+			   OPTION_OVERLOADED_SERVER_NAME) {
+			iterator->extra_option_locations &=
+				~OPTION_OVERLOADED_SERVER_NAME;
+			iterator->ptr = iterator->bootp->sname;
+			iterator->end = iterator->ptr +
+				sizeof(iterator->bootp->sname);
+		} else
+			return 0;
+	}
+
+	if (iterator->ptr + 2 > iterator->end)
+		return 0;
+
+	option_code = *iterator->ptr++;
+	option_len = *iterator->ptr++;
+	if (iterator->ptr + option_len > iterator->end)
+		return 0;
+
+	if (option_code == DHO_OPTSOVERLOADED && option_len > 0 &&
+	    !iterator->extra_option_locations_set) {
+		iterator->extra_option_locations = *iterator->ptr;
+		iterator->extra_option_locations_set = 1;
+	}
+
+	if (option)
+		*option = option_code;
+	if (length)
+		*length = option_len;
+	if (value)
+		*value = iterator->ptr;
+
+	iterator->ptr += option_len;
+
+	return 1;
+}
+
+static void
+merge_option_values(const struct bootp *src,
+		    struct bootp *dst, uint8_t *copy_options)
+{
+	uint8_t supplied_options[OPTION_MASK_SIZE];
+	struct dhcp_option_iterator dst_iterator;
+	struct dhcp_option_iterator src_iterator;
+	uint8_t option;
+	const uint8_t *option_value;
+	uint8_t option_length;
+	uint8_t *out;
+	const uint8_t *out_end;
+	int added_options = 0;
+
+	/* Traverse the destination message for options already supplied. */
+	memset(&supplied_options, 0, sizeof(supplied_options));
+	init_option_iterator(dst, &dst_iterator);
+	while (iterate_next_option(&dst_iterator, &option, NULL, NULL)) {
+		add_option_mask(supplied_options, option);
+	}
+
+	/* We will start merging options at the end of the last block
+	 * the iterator traversed to.  The const cast below is safe since
+	 * this points to data within the (non-const) dst message. */
+	out = (uint8_t *) dst_iterator.ptr;
+	out_end = dst_iterator.end;
+
+	init_option_iterator(src, &src_iterator);
+	while (iterate_next_option(&src_iterator, &option, &option_length,
+				   &option_value)) {
+		if (has_option_mask(supplied_options, option) ||
+		    !has_option_mask(copy_options, option))
+			continue;
+		/* We need space for this option, plus a trailing DHO_END. */
+		if (out + option_length + 3 > out_end) {
+			logerrx("%s: unable to fit option %d (length %d)",
+			       __func__, option, option_length);
+			continue;
+		}
+		*out++ = option;
+		*out++ = option_length;
+		memcpy(out, option_value, option_length);
+		out += option_length;
+		added_options++;
+	}
+
+	if (added_options) {
+		*out++ = DHO_END;
+		loginfox("carrying over %d options from original offer",
+                         added_options);
+	}
+}
+
 void
 dhcp_bind(struct interface *ifp)
 {
@@ -2475,6 +2600,18 @@ dhcp_bind(struct interface *ifp)
 		else
 			state->reason = "BOUND";
 	}
+
+	if (state->old && state->old->yiaddr == state->new->yiaddr &&
+	    (state->state == DHS_REBOOT || state->state == DHS_RENEW ||
+	     state->state == DHS_REBIND)) {
+		/* Some DHCP servers respond to REQUEST with a subset
+		 * of the original requested parameters.  If they were not
+		 * supplied in the response to a renewal, we should assume
+		 * that it's reasonable to transfer them forward from the
+		 * original offer. */
+		merge_option_values(state->old, state->new, ifo->requestmask);
+	}
+
 	if (lease->leasetime == ~0U)
 		lease->renewaltime = lease->rebindtime = lease->leasetime;
 	else {

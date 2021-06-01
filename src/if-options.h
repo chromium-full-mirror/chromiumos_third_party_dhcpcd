@@ -127,6 +127,8 @@
 
 #define DHCPCD_WARNINGS	(DHCPCD_CSR_WARNED | \
 		DHCPCD_ROUTER_HOST_ROUTE_WARNED)
+/* The number of bytes it takes to hold a flag for each of the 256 options. */
+#define OPTION_MASK_SIZE (256 / NBBY)
 
 extern const struct option cf_options[];
 
@@ -162,11 +164,11 @@ struct if_options {
 	time_t mtime;
 	uint8_t iaid[4];
 	int metric;
-	uint8_t requestmask[256 / NBBY];
-	uint8_t requiremask[256 / NBBY];
-	uint8_t nomask[256 / NBBY];
-	uint8_t rejectmask[256 / NBBY];
-	uint8_t dstmask[256 / NBBY];
+	uint8_t requestmask[OPTION_MASK_SIZE];
+	uint8_t requiremask[OPTION_MASK_SIZE];
+	uint8_t nomask[OPTION_MASK_SIZE];
+	uint8_t rejectmask[OPTION_MASK_SIZE];
+	uint8_t dstmask[OPTION_MASK_SIZE];
 	uint8_t requestmasknd[(UINT16_MAX + 1) / NBBY];
 	uint8_t requiremasknd[(UINT16_MAX + 1) / NBBY];
 	uint8_t nomasknd[(UINT16_MAX + 1) / NBBY];
