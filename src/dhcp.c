@@ -1966,6 +1966,8 @@ dhcp_discover(void *arg)
 	struct if_options *ifo = ifp->options;
 
 	state->state = DHS_DISCOVER;
+	state->nak_receive_count = 0;
+	state->failed_address_offer_count = 0;
 	dhcp_new_xid(ifp);
 	eloop_timeout_delete(ifp->ctx->eloop, NULL, ifp);
 	if (ifo->fallback)
@@ -1992,6 +1994,7 @@ dhcp_request(void *arg)
 	struct dhcp_state *state = D_STATE(ifp);
 
 	state->state = DHS_REQUEST;
+	state->nak_receive_count = 0;
 	send_request(ifp);
 }
 
@@ -2082,6 +2085,7 @@ dhcp_startrenew(void *arg)
 	logdebugx("%s: renewing lease of %s", ifp->name,
 	    inet_ntoa(lease->addr));
 	state->state = DHS_RENEW;
+	state->nak_receive_count = 0;
 	dhcp_new_xid(ifp);
 	state->interval = 0;
 	send_renew(ifp);
@@ -2107,6 +2111,7 @@ dhcp_rebind(void *arg)
 	state->state = DHS_REBIND;
 	eloop_timeout_delete(ifp->ctx->eloop, send_renew, ifp);
 	state->lease.server.s_addr = INADDR_ANY;
+	state->nak_receive_count = 0;
 	state->interval = 0;
 	ifp->options->options &= ~(DHCPCD_CSR_WARNED |
 	    DHCPCD_ROUTER_HOST_ROUTE_WARNED);
@@ -2320,10 +2325,13 @@ dhcp_arp_conflicted(struct arp_state *astate, const struct arp_msg *amsg)
 		struct ipv4_addr *ia;
 #endif
 
-		if (amsg)
+		if (amsg) {
 			astate->failed.s_addr = state->offer->yiaddr;
-		else
+			state->failed.s_addr = state->offer->yiaddr;
+		} else {
 			astate->failed = astate->addr;
+			state->failed = astate->addr;
+		}
 		arp_report_conflicted(astate, amsg);
 		unlink(state->leasefile);
 #ifdef ARP
@@ -2608,7 +2616,9 @@ dhcp_arp_address(struct interface *ifp)
 		return 0;
 	}
 #else
-	if (ifp->options->options & DHCPCD_ARP && ia == NULL) {
+	if ((ifp->options->options & DHCPCD_ARP && ia == NULL) ||
+	    state->nak_receive_count > 0 ||
+	    state->offer->yiaddr == state->failed.s_addr) {
 		struct dhcp_lease l;
 
 		state->state = DHS_PROBE;
@@ -3299,8 +3309,10 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 		if (state->state == DHS_INFORM) /* INFORM should not be NAKed */
 			return;
                 LOGDHCP(logwarnx, "NAK (deferred)");
-		eloop_timeout_add_sec(ifp->ctx->eloop, DHCP_BASE,
-                                      handle_nak, ifp);
+		if (state->nak_receive_count == 0)
+			eloop_timeout_add_sec(ifp->ctx->eloop, DHCP_BASE,
+					      handle_nak, ifp);
+		state->nak_receive_count++;
 		return;
 	}
 
@@ -3388,6 +3400,12 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 
 	bootp_copied = false;
 	if ((type == 0 || type == DHCP_OFFER) && state->state == DHS_DISCOVER) {
+		if (bootp->yiaddr == state->failed.s_addr &&
+		    state->failed_address_offer_count == 0) {
+			LOGDHCP(logwarnx, "reject previously declined address");
+			state->failed_address_offer_count++;
+			return;
+		}
 		lease->frominfo = 0;
 		lease->addr.s_addr = bootp->yiaddr;
 		memcpy(&lease->cookie, bootp->vend, sizeof(lease->cookie));

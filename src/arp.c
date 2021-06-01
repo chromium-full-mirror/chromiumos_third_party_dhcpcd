@@ -45,6 +45,7 @@
 #include "bpf.h"
 #include "ipv4.h"
 #include "common.h"
+#include "dhcp.h"
 #include "dhcpcd.h"
 #include "eloop.h"
 #include "if.h"
@@ -119,6 +120,7 @@ arp_packet(struct interface *ifp, uint8_t *data, size_t len)
 	const struct iarp_state *state;
 	struct arp_state *astate, *astaten;
 	uint8_t *hw_s, *hw_t;
+	struct dhcp_state *d_state;
 
 	/* We must have a full ARP header */
 	if (len < sizeof(ar))
@@ -171,6 +173,8 @@ arp_packet(struct interface *ifp, uint8_t *data, size_t len)
 
 	/* Run the conflicts */
 	state = ARP_CSTATE(ifp);
+	d_state = D_STATE(ifp);
+	d_state->failed.s_addr = 0;
 	TAILQ_FOREACH_SAFE(astate, &state->arp_states, next, astaten) {
 		if (arm.sip.s_addr != astate->addr.s_addr &&
 		    arm.tip.s_addr != astate->addr.s_addr)
