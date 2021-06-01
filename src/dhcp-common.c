@@ -819,6 +819,10 @@ print_option(char *s, size_t len, const struct dhcp_opt *opt,
 		}
 		if (sl == -1)
 			return bytes == 0 ? -1 : bytes;
+		if (len <= (size_t)sl) {
+			bytes += len;
+			break;
+		}
 		len -= (size_t)sl;
 		bytes += sl;
 		s += sl;
