@@ -65,6 +65,7 @@
 #include "ipv4.h"
 #include "ipv4ll.h"
 #include "logerr.h"
+#include "rpc-interface.h"
 #include "sa.h"
 #include "script.h"
 
@@ -1965,6 +1966,7 @@ dhcp_discover(void *arg)
 	struct dhcp_state *state = D_STATE(ifp);
 	struct if_options *ifo = ifp->options;
 
+	rpc_signal_status("Discover");
 	state->state = DHS_DISCOVER;
 	state->nak_receive_count = 0;
 	state->failed_address_offer_count = 0;
@@ -1993,6 +1995,7 @@ dhcp_request(void *arg)
 	struct interface *ifp = arg;
 	struct dhcp_state *state = D_STATE(ifp);
 
+	rpc_signal_status("Request");
 	state->state = DHS_REQUEST;
 	state->nak_receive_count = 0;
 	send_request(ifp);
@@ -2094,7 +2097,7 @@ dhcp_startrenew(void *arg)
 void
 dhcp_renew(struct interface *ifp)
 {
-
+	rpc_signal_status("Renew");
 	dhcp_startrenew(ifp);
 }
 
@@ -2105,6 +2108,7 @@ dhcp_rebind(void *arg)
 	struct dhcp_state *state = D_STATE(ifp);
 	struct dhcp_lease *lease = &state->lease;
 
+	rpc_signal_status("Rebind");
 	logwarnx("%s: failed to renew DHCP, rebinding", ifp->name);
 	logdebugx("%s: expire in %"PRIu32" seconds",
 	    ifp->name, lease->leasetime - lease->rebindtime);
@@ -2164,7 +2168,7 @@ dhcp_probe_gw_response(struct arp_state *astate, const struct arp_msg *amsg)
 	    amsg->sip.s_addr == astate->addr.s_addr) {
 		if (astate->dest_hwlen) {
 			/* Response to unicast ARP. */
-			/* TODO(zqiu): notify listener. */
+			rpc_notify_unicast_arp(astate->iface);
 		} else {
 			/* Response to arpgw request. */
 			save_gateway_addr(astate->iface, amsg->sha);
@@ -2764,6 +2768,7 @@ dhcp_arp_address(struct interface *ifp)
 		    ifp->name, inet_ntoa(l.addr), inet_ntocidr(l.mask));
 		/* We need to handle DAD. */
 		arp_probe(astate);
+		rpc_signal_status("ArpSelf");
 		return 0;
 	}
 #endif
@@ -2823,6 +2828,7 @@ dhcp_inform(struct interface *ifp)
 	state = D_STATE(ifp);
 	ifo = ifp->options;
 
+	rpc_signal_status("Inform");
 	state->state = DHS_INFORM;
 	free(state->offer);
 	state->offer = NULL;
@@ -2982,6 +2988,7 @@ dhcp_reboot(struct interface *ifp)
 
 	if (state == NULL || state->state == DHS_NONE)
 		return;
+	rpc_signal_status("Reboot");
 	ifo = ifp->options;
 	state->state = DHS_REBOOT;
 	state->interval = 0;
@@ -3274,7 +3281,6 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	struct if_options *ifo = ifp->options;
 	struct dhcp_lease *lease = &state->lease;
 	uint8_t type, tmp;
-	struct in_addr addr;
 	unsigned int i;
 	char *msg;
 	bool bootp_copied;
@@ -3445,7 +3451,8 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 		}
 		if (state->state == DHS_INFORM) /* INFORM should not be NAKed */
 			return;
-                LOGDHCP(logwarnx, "NAK (deferred)");
+		LOGDHCP(logwarnx, "NAK (deferred)");
+		rpc_signal_status("NakDefer");
 		if (state->nak_receive_count == 0)
 			eloop_timeout_add_sec(ifp->ctx->eloop, DHCP_BASE,
 					      handle_nak, ifp);
@@ -3517,6 +3524,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	    &&
 	    (bootp->yiaddr == INADDR_ANY || bootp->yiaddr == INADDR_BROADCAST))
 	{
+		rpc_signal_status("IgnoreInvalidOffer");
 		LOGDHCP(logwarnx, "reject invalid address");
 		return;
 	}
@@ -3540,6 +3548,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 		if (bootp->yiaddr == state->failed.s_addr &&
 		    state->failed_address_offer_count == 0) {
 			LOGDHCP(logwarnx, "reject previously declined address");
+			rpc_signal_status("IgnoreFailedOffer");
 			state->failed_address_offer_count++;
 			return;
 		}
@@ -3605,12 +3614,14 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	if (type) {
 		if (type == DHCP_OFFER) {
 			LOGDHCP(logwarnx, "ignoring offer of");
+			rpc_signal_status("IgnoreAdditionalOffer");
 			return;
 		}
 
 		/* We should only be dealing with acks */
 		if (type != DHCP_ACK) {
 			LOGDHCP(logerr, "not ACK or OFFER");
+			rpc_signal_status("IgnoreNonOffer");
 			return;
 		}
 
@@ -3658,6 +3669,7 @@ rapidcommit:
 
 #ifdef ARP
 	if ((ifo->options & DHCPCD_ARPGW) && (dhcp_probe_gw(ifp))) {
+		rpc_signal_status("ArpGateway");
 		return;
 	}
 

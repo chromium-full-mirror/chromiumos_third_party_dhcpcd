@@ -123,7 +123,7 @@ bool inet_getroutes(struct dhcpcd_ctx *, struct rt_head *);
 int ipv4_deladdr(struct ipv4_addr *, int);
 struct ipv4_addr *ipv4_addaddr(struct interface *,
     const struct in_addr *, const struct in_addr *, const struct in_addr *);
-void ipv4_applyaddr(void *);
+void ipv4_applyaddr(struct interface *);
 
 struct ipv4_addr *ipv4_iffindaddr(struct interface *,
     const struct in_addr *, const struct in_addr *);

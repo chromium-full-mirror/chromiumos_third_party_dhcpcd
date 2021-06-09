@@ -3,7 +3,7 @@
 PROG=		dhcpcd
 SRCS=		common.c control.c dhcpcd.c duid.c eloop.c logerr.c
 SRCS+=		if.c if-options.c sa.c route.c
-SRCS+=		dhcp-common.c script.c
+SRCS+=		dhcp-common.c script.c rpc-stub.c
 
 CFLAGS?=	-O2
 SUBDIRS+=	${MKDIRS}

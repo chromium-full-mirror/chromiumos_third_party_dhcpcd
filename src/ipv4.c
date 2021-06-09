@@ -55,6 +55,9 @@
 #include "route.h"
 #include "script.h"
 #include "sa.h"
+#ifdef PASSIVE_MODE
+#include "rpc-interface.h"
+#endif
 
 #define IPV4_LOOPBACK_ROUTE
 #if defined(__linux__) || defined(__sun) || (defined(BSD) && defined(RTF_LOCAL))
@@ -690,9 +693,8 @@ ipv4_daddaddr(struct interface *ifp, const struct dhcp_lease *lease)
 }
 
 void
-ipv4_applyaddr(void *arg)
+ipv4_applyaddr(struct interface *ifp)
 {
-	struct interface *ifp = arg;
 	struct dhcp_state *state = D_STATE(ifp);
 	struct dhcp_lease *lease;
 	struct if_options *ifo = ifp->options;
@@ -702,6 +704,12 @@ ipv4_applyaddr(void *arg)
 	if (state == NULL)
 		return;
 
+#ifdef PASSIVE_MODE
+	/* Note that in passive mode we still allow to update internal state
+	 * below - this is in order to have valid information (important in case
+	 * we need to e.g. renew) and to handle properly ARP. */
+	rpc_update_ipv4(ifp);
+#endif
 	lease = &state->lease;
 	if (state->new == NULL) {
 		if ((ifo->options & (DHCPCD_EXITING | DHCPCD_PERSISTENT)) !=

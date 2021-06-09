@@ -65,6 +65,7 @@ const char dhcpcd_copyright[] = "Copyright (c) 2006-2019 Roy Marples";
 #include "ipv6.h"
 #include "ipv6nd.h"
 #include "logerr.h"
+#include "rpc-interface.h"
 #include "script.h"
 
 #ifdef HAVE_UTIL_H
@@ -1977,6 +1978,12 @@ printpidfile:
 	if ((ctx.options & (DHCPCD_MASTER | DHCPCD_DEV)) ==
 	    (DHCPCD_MASTER | DHCPCD_DEV))
 		dev_start(&ctx);
+
+	if (rpc_init(&ctx) == -1) {
+		/* NB: rpc_init generates a syslog msg */
+		goto exit_failure;
+	}
+	rpc_signal_status("Init");
 
 	ctx.ifaces = if_discover(&ctx, &ifaddrs, ctx.ifc, ctx.ifv);
 	if (ctx.ifaces == NULL) {

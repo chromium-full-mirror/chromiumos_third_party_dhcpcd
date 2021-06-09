@@ -1198,6 +1198,10 @@ struct nlmr
 int
 if_route(unsigned char cmd, const struct rt *rt)
 {
+/* Do not modify route table when running in passive mode. */
+#ifdef PASSIVE_MODE
+	return 0;
+#endif
 	struct nlmr nlm;
 	bool gateway_unspec;
 
@@ -1457,6 +1461,10 @@ bpf_attach(int s, void *filter, unsigned int filter_len)
 int
 if_address(unsigned char cmd, const struct ipv4_addr *addr)
 {
+/* Do not modify addresses when running in passive mode. */
+#ifdef PASSIVE_MODE
+	return 0;
+#endif
 	struct nlma nlm;
 	int retval = 0;
 #if defined(IFA_F_NOPREFIXROUTE)
@@ -1511,6 +1519,9 @@ __unused const struct in_addr *addr, __unused const char *alias)
 int
 if_address6(unsigned char cmd, const struct ipv6_addr *ia)
 {
+#ifdef PASSIVE_MODE
+	return 0;
+#endif
 	struct nlma nlm;
 	struct ifa_cacheinfo cinfo;
 /* IFA_FLAGS is not a define, but is was added at the same time
