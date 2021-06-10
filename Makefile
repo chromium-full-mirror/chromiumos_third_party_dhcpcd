@@ -1,4 +1,11 @@
-SUBDIRS=	src hooks
+TOP?=		.
+include ${TOP}/iconfig.mk
+
+SUBDIRS=	src
+
+ifneq ($(HOOKSCRIPTS),)
+SUBDIRS+= 	hooks
+endif
 
 VERSION!=	sed -n 's/\#define VERSION[[:space:]]*"\(.*\)".*/\1/p' src/defs.h
 

@@ -78,7 +78,9 @@ for x do
 	CPPFLAGS) CPPFLAGS=$var;;
 	PKG_CONFIG) PKG_CONFIG=$var;;
 	--with-hook) HOOKSCRIPTS="$HOOKSCRIPTS${HOOKSCRIPTS:+ }$var";;
-	--with-hooks|HOOKSCRIPTS) HOOKSCRIPTS=$var; HOOKSET=true;;
+	--with-hooks|HOOKSCRIPTS)
+		if [ "$opt" != "$var" ]; then HOOKSCRIPTS=$var; fi
+		HOOKSET=true;;
 	--build) BUILD=$var;;
 	--host) HOST=$var; HOSTCC=$var-;;
 	--target) TARGET=$var;;
@@ -687,7 +689,7 @@ elif $XCC _inet_ntoa.c -lnsl -o _inet_ntoa 2>&3; then
 	echo "LDADD+=		-lnsl" >>$CONFIG_MK
 elif $XCC _inet_ntoa.c -lsocket -o _inet_ntoa 2>&3; then
 	echo "yes (-lsocket)"
-	echo "LDADD+=		-lsocket" >>$CONFIG_MK	
+	echo "LDADD+=		-lsocket" >>$CONFIG_MK
 else
 	echo "no"
 	echo "libc support for inet_ntoa is required - aborting" >&2
@@ -1430,7 +1432,7 @@ fi
 echo "STATUSARG=	$STATUSARG" >>config.mk
 
 HOOKS=
-if ! $HOOKSET; then
+if $HOOKSET; then
 	printf "Checking for ntpd ... "
 	NTPD=$(_which ntpd)
 	if [ -n "$NTPD" ]; then
@@ -1519,6 +1521,13 @@ if cd hooks; then
 	done
 	cd ..
 fi
+
+if [ -z  "$HOOKS" ]; then
+	echo "DHCPCD_SRCS+=	script-stub.c" >>$CONFIG_MK
+else
+	echo "SCRIPTSINSTALL=	_scriptsinstall" >>$CONFIG_MK
+	echo "DHCPCD_SRCS+=	script.c" >>$CONFIG_MK
+fi
 echo "HOOKSCRIPTS=	$HOOKS" >>$CONFIG_MK
 echo "EGHOOKSCRIPTS=	$EGHOOKS" >>$CONFIG_MK
 
@@ -1528,7 +1537,7 @@ echo "   SBINDIR =		$SBINDIR"
 echo "   LIBDIR =		$LIBDIR"
 echo "   LIBEXECDIR =		$LIBEXECDIR"
 echo "   DBDIR =		$DBDIR"
-echo "   RUNDIR =		$RUNDIR"	
+echo "   RUNDIR =		$RUNDIR"
 echo "   MANDIR =		$MANDIR"
 echo "   DATADIR =		$DATADIR"
 echo "   HOOKSCRIPTS =	$HOOKS"
