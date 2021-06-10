@@ -1723,7 +1723,7 @@ send_message(struct interface *ifp, uint8_t type,
 		/* No carrier? Don't bother sending the packet. */
 		if (!if_is_link_up(ifp))
 			return;
-		logdebugx("%s: sending %s with xid 0x%x",
+		loginfox("%s: sending %s with xid 0x%x",
 		    ifp->name,
 		    ifo->options & DHCPCD_BOOTP ? "BOOTP" : get_dhcp_op(type),
 		    state->xid);
@@ -1742,7 +1742,7 @@ send_message(struct interface *ifp, uint8_t type,
 		 * However, we do need to advance the timeout. */
 		if (!if_is_link_up(ifp))
 			goto fail;
-		logdebugx("%s: sending %s (xid 0x%x), next in %0.1f seconds",
+		loginfox("%s: sending %s (xid 0x%x), next in %0.1f seconds",
 		    ifp->name,
 		    ifo->options & DHCPCD_BOOTP ? "BOOTP" : get_dhcp_op(type),
 		    state->xid,
@@ -1919,6 +1919,8 @@ dhcp_request(void *arg)
 	struct interface *ifp = arg;
 	struct dhcp_state *state = D_STATE(ifp);
 
+	loginfox("%s: requesting lease of %s",
+		ifp->name, inet_ntoa(state->lease.addr));
 	state->state = DHS_REQUEST;
 	state->nak_receive_count = 0;
 	// Handle the server being silent to our request.
@@ -1977,8 +1979,8 @@ dhcp_startrenew(void *arg)
 	eloop_timeout_delete(ifp->ctx->eloop, dhcp_startrenew, ifp);
 
 	lease = &state->lease;
-	logdebugx("%s: renewing lease of %s", ifp->name,
-	    inet_ntoa(lease->addr));
+	loginfox("%s: renewing lease of %s", ifp->name,
+		 inet_ntoa(lease->addr));
 	state->state = DHS_RENEW;
 	state->nak_receive_count = 0;
 	dhcp_new_xid(ifp);
@@ -2599,6 +2601,7 @@ dhcp_inform(struct interface *ifp)
 	state = D_STATE(ifp);
 	ifo = ifp->options;
 
+	loginfox("%s: informing peers of local address", ifp->name);
 	free(state->offer);
 	state->offer = NULL;
 	state->offer_len = 0;
@@ -3105,6 +3108,9 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 		return;
 	}
 
+	loginfox("%s: received %s with xid 0x%x",
+		 ifp->name, get_dhcp_op(type), state->xid);
+
 #ifdef AUTH
 	/* Authenticate the message */
 	auth = get_option(ifp->ctx, bootp, bootp_len,
@@ -3411,7 +3417,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 
 rapidcommit:
 		if (!(ifo->options & DHCPCD_INFORM))
-			LOGDHCP(LOG_DEBUG, "acknowledged");
+			LOGDHCP(LOG_INFO, "acknowledged");
 		else
 		    ifo->options &= ~DHCPCD_STATIC;
 	}
