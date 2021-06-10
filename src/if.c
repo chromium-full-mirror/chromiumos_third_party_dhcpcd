@@ -630,6 +630,13 @@ if_discover(struct dhcpcd_ctx *ctx, struct ifaddrs **ifaddrs,
 		TAILQ_INSERT_TAIL(ifs, ifp, next);
 	}
 
+	if (!ifs) {
+		loginfox("%s: no matching interfaces", __func__);
+		for (ifa = *ifaddrs; ifa; ifa = ifa->ifa_next) {
+			loginfox("%s: considered %s", __func__, ifa->ifa_name);
+		}
+	}
+
 #ifdef IFLR_ACTIVE
 	close(link_fd);
 #endif
