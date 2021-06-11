@@ -1698,6 +1698,9 @@ static const char *prefix = "/proc/sys/net/ipv6/conf";
 void
 if_setup_inet6(const struct interface *ifp)
 {
+#ifdef PASSIVE_MODE
+	return;
+#endif
 	int ra;
 	char path[256];
 

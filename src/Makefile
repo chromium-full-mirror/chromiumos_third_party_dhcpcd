@@ -3,7 +3,8 @@
 PROG=		dhcpcd
 SRCS=		common.c control.c dhcpcd.c duid.c eloop.c logerr.c
 SRCS+=		if.c if-options.c sa.c route.c
-SRCS+=		dhcp-common.c rpc-stub.c
+SRCS+=		dhcp-common.c
+PKG_CONFIG ?= pkg-config
 
 CFLAGS?=	-O2
 SUBDIRS+=	${MKDIRS}
@@ -29,6 +30,17 @@ CLEANFILES=	dhcpcd.conf.5 dhcpcd.8
 FILES=		dhcpcd.conf
 FILESDIR=	${SYSCONFDIR}
 
+ifeq ($(DBUS_SUPPORT),yes)
+FILES+= 	dbus/dhcpcd-dbus.conf
+
+DBUSCFLAGS := $(shell $(PKG_CONFIG) --cflags dbus-1)
+DBUSLIBS := $(shell $(PKG_CONFIG) --libs dbus-1)
+DBUSDIR= ${SYSCONFDIR}/dbus-1/system.d
+
+CFLAGS+= ${DBUSCFLAGS}
+LDADD+= ${DBUSLIBS}
+endif
+
 DEPEND!=	test -e .depend && echo ".depend" || echo ""
 
 CLEANFILES+=	*.tar.xz
@@ -44,7 +56,7 @@ CLEANFILES+=	*.tar.xz
 		${SED_STATUSARG} \
 		$< > $@
 
-all: ${TOP}/config.h ${PROG} ${SCRIPTS} ${MAN5} ${MAN8}
+all: ${TOP}/config.h ${PROG} ${SCRIPTS} ${MAN5} ${MAN8} ${FILES}
 	for x in ${SUBDIRS}; do cd $$x; ${MAKE} $@ || exit $$?; cd ..; done
 
 dev:
@@ -92,7 +104,12 @@ _maninstall: ${MAN5} ${MAN8}
 	${INSTALL} -d ${DESTDIR}${MANDIR}/man8
 	${INSTALL} -m ${MANMODE} ${MAN8} ${DESTDIR}${MANDIR}/man8
 
-_confinstall:
+_dbusinstall: dbus/dhcpcd-dbus.conf
+	${INSTALL} -d ${DESTDIR}${DBUSDIR}
+	${INSTALL} -m ${CONFMODE} dbus/dhcpcd-dbus.conf \
+		${DESTDIR}${DBUSDIR}/dhcpcd.conf
+
+_confinstall: ${DBUSINSTALL}
 	${INSTALL} -d ${DESTDIR}${SYSCONFDIR}
 	# Install a new default config if not present
 	test -e ${DESTDIR}${SYSCONFDIR}/dhcpcd.conf || \
@@ -126,7 +143,7 @@ _confinstall:
 	
 eginstall:
 
-install: proginstall _maninstall _confinstall eginstall
+install: proginstall _confinstall eginstall
 
 clean:
 	rm -f ${OBJS} ${PROG} ${PROG}.core ${CLEANFILES}

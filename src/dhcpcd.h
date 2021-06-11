@@ -229,4 +229,9 @@ int dhcpcd_selectprofile(struct interface *, const char *);
 void dhcpcd_startinterface(void *);
 void dhcpcd_activateinterface(struct interface *, unsigned long long);
 
+void dhcpcd_start_interface(struct dhcpcd_ctx *, const char *);
+void dhcpcd_stop_interface(struct dhcpcd_ctx *, const char *);
+void dhcpcd_release_ipv4(struct dhcpcd_ctx *, const char *);
+void dhcpcd_stop_interfaces(struct dhcpcd_ctx *);
+
 #endif

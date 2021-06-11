@@ -329,7 +329,7 @@ logopen(const char *path)
 	struct logctx *ctx = &_logctx;
 
 	if (path == NULL) {
-		int opts = 0;
+		int opts = LOG_PERROR;
 
 		if (ctx->log_opts & LOGERR_LOG_PID)
 			opts |= LOG_PID;

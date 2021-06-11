@@ -31,6 +31,7 @@ AUTH=
 POLL=
 SMALL=
 STATUSARG=
+DBUS=
 
 DHCPCD_DEFS=dhcpcd-definitions.conf
 
@@ -63,6 +64,8 @@ for x do
 	--enable-embedded) EMBEDDED=yes;;
 	--disable-auth) AUTH=no;;
 	--enable-auth) AUTH=yes;;
+	--enable-dbus) DBUS=yes;;
+	--disable-dbus) DBUS=no;;
 	--prefix) PREFIX=$var;;
 	--sysconfdir) SYSCONFDIR=$var;;
 	--bindir|--sbindir) SBINDIR=$var;;
@@ -501,6 +504,15 @@ if [ -z "$AUTH" -o "$AUTH" = yes ]; then
 fi
 if [ -z "$INET6" -o "$INET6" = yes -o -z "$AUTH" -o "$AUTH" = yes ]; then
 	echo "CRYPT_SRCS+=	\${MD5_SRC} \${SHA256_SRC}" >>$CONFIG_MK
+fi
+
+if [ "$DBUS" = yes ]; then
+	echo "DBUS_SUPPORT=	yes" >>$CONFIG_MK
+	echo "DBUSINSTALL=	_dbusinstall" >>$CONFIG_MK
+	echo "CPPFLAGS+=	-DPASSIVE_MODE" >>$CONFIG_MK
+	echo "DHCPCD_SRCS+=	dbus/dbus-dict.c dbus/rpc-dbus.c" >>$CONFIG_MK
+else
+	echo "DHCPCD_SRCS+=	rpc-stub.c" >>$CONFIG_MK
 fi
 
 echo "Using compiler .. $CC"
