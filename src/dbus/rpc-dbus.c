@@ -217,6 +217,7 @@ static const struct o_dbus dhos[] = {
 	{ "domain_search=", DBUS_TYPE_ARRAY, DBUS_TYPE_STRING,
 	  "DomainSearch" },
 	{ "wpad_url=", DBUS_TYPE_STRING, 0, "WebProxyAutoDiscoveryUrl" },
+	{ "isns_option_data=", DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, "iSNSOptionData" },
 	{ NULL, 0, 0, NULL }
 };
 
