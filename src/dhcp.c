@@ -2171,6 +2171,8 @@ dhcp_probe_gw_response(struct arp_state *astate, const struct arp_msg *amsg)
 		if (astate->dest_hwlen) {
 			/* Response to unicast ARP. */
 			rpc_notify_unicast_arp(astate->iface);
+			/* Unicast ARP succeeded; no need for broadcast ARP. */
+			astate->iface->options->options &= ~DHCPCD_ARPGW;
 		} else {
 			/* Response to arpgw request. */
 			save_gateway_addr(astate->iface, amsg->sha);
@@ -2199,6 +2201,8 @@ dhcp_probe_gw(struct interface *ifp)
 			    state->offer, state->offer_len, DHO_ROUTER) == 0) {
 		astate = arp_new(ifp, &gateway_addr);
 		if (astate) {
+			/* Make sure we're doing a broadcast ARP. */
+			astate->dest_hwlen = 0;
 			astate->src_addr.s_addr = state->offer->yiaddr;
 			astate->probed_cb = dhcp_probe_gw_timeout;
 			astate->conflicted_cb = dhcp_probe_gw_response;
