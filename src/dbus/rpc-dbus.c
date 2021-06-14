@@ -157,7 +157,7 @@ static const struct o_dbus dhos[] = {
 	{ "nis_domain=", DBUS_TYPE_STRING, 0, "NISDomain" },
 	{ "nis_servers=", DBUS_TYPE_ARRAY, DBUS_TYPE_UINT32, "NISServers" },
 	{ "ntp_servers=", DBUS_TYPE_ARRAY, DBUS_TYPE_UINT32, "NTPServers" },
-	{ "vendor_encapsulated_options=", DBUS_TYPE_STRING, 0,
+	{ "vendor_encapsulated_options=", DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE,
 	  "VendorEncapsulatedOptions" },
 	{ "netbios_name_servers=" ,DBUS_TYPE_ARRAY, DBUS_TYPE_UINT32,
 	  "NetBIOSNameServers" },
