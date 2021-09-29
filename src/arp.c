@@ -296,12 +296,12 @@ arp_probe1(void *arg)
 		tv.tv_nsec = 0;
 		eloop_timeout_add_tv(ifp->ctx->eloop, &tv, arp_probed, astate);
 	}
-	loginfox("%s: ARP probing %s (%d of %d), next in %0.1f seconds",
-	    ifp->name, inet_ntoa(astate->addr),
-	    astate->probes ? astate->probes : PROBE_NUM, PROBE_NUM,
-	    timespec_to_double(&tv));
 	if (astate->dest_hwlen == ifp->hwlen)
 		dest_hwaddr = astate->dest_hwaddr;
+	loginfox("%s: ARP(%c) probing %s (%d of %d), next in %0.1f seconds",
+	    ifp->name, dest_hwaddr ? 'U' : 'B', inet_ntoa(astate->addr),
+	    astate->probes ? astate->probes : PROBE_NUM, PROBE_NUM,
+	    timespec_to_double(&tv));
 	if (arp_request(ifp, astate->src_addr.s_addr,
 			astate->addr.s_addr, dest_hwaddr) == -1)
 		logerr(__func__);
