@@ -1196,9 +1196,11 @@ dhcpcd_stop_interface(struct dhcpcd_ctx *ctx, const char *ifname)
 {
 	struct interface *ifp;
 	ifp = if_find(ctx->ifaces, ifname);
-	if (ifp == NULL)
-	{
+	if (ifp == NULL) {
 		logerrx("stop_interface: %s not found", ifname);
+		return;
+	} else if (ifp->active == IF_INACTIVE) {
+		logerrx("stop_interface: %s is not active", ifname);
 		return;
 	}
 	stop_interface(ifp);
@@ -1209,6 +1211,8 @@ dhcpcd_stop_interfaces(struct dhcpcd_ctx *ctx)
 {
 	struct interface *ifp, *ifn;
 	TAILQ_FOREACH_SAFE(ifp, ctx->ifaces, next, ifn) {
+		if (ifp->active == IF_INACTIVE)
+			continue;
 		stop_interface(ifp);
 	}
 }
