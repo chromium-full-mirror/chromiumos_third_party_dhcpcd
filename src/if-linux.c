@@ -1354,13 +1354,13 @@ bpf_open(struct interface *ifp, int (*filter)(struct interface *, int))
 	state = ipv4_getstate(ifp);
 	if (state == NULL)
 		goto eexit;
-	if (state->buffer_size < ETH_DATA_LEN) {
+	if (state->buffer_size < ETH_FRAME_LEN) {
 		void *nb;
 
-		if ((nb = realloc(state->buffer, ETH_DATA_LEN)) == NULL)
+		if ((nb = realloc(state->buffer, ETH_FRAME_LEN)) == NULL)
 			goto eexit;
 		state->buffer = nb;
-		state->buffer_size = ETH_DATA_LEN;
+		state->buffer_size = ETH_FRAME_LEN;
 		state->buffer_len = state->buffer_pos = 0;
 	}
 
