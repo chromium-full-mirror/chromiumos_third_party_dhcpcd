@@ -1418,31 +1418,36 @@ bpf_read(struct interface *ifp, int s, void *data, size_t len,
 #endif
 
 	bytes = recvmsg(s, &msg, 0);
-	if (bytes == -1)
-		return -1;
+	if (bytes <= 0)
+		return bytes;
+
+	if (msg.msg_flags != 0)
+		logwarn("%s: non-zero recv flags = %d", __func__, msg.msg_flags);
 	*flags |= BPF_EOF; /* We only ever read one packet. */
 	*flags &= ~BPF_PARTIALCSUM;
-	if (bytes) {
-		ssize_t fl = (ssize_t)bpf_frame_header_len(ifp);
 
-		bytes -= fl;
-		if ((size_t)bytes > len)
-			bytes = (ssize_t)len;
-		memcpy(data, state->buffer + fl, (size_t)bytes);
-#ifdef PACKET_AUXDATA
-		for (cmsg = CMSG_FIRSTHDR(&msg);
-		     cmsg;
-		     cmsg = CMSG_NXTHDR(&msg, cmsg))
-		{
-			if (cmsg->cmsg_level == SOL_PACKET &&
-			    cmsg->cmsg_type == PACKET_AUXDATA) {
-				aux = (void *)CMSG_DATA(cmsg);
-				if (aux->tp_status & TP_STATUS_CSUMNOTREADY)
-					*flags |= BPF_PARTIALCSUM;
-			}
-		}
-#endif
+	ssize_t fl = (ssize_t)bpf_frame_header_len(ifp);
+	if (bytes < fl) {
+		logwarn("%s: packet too short = %zd", __func__, bytes);
+		return 0;
 	}
+	bytes -= fl;
+	if ((size_t)bytes > len)
+		bytes = (ssize_t)len;
+	memcpy(data, state->buffer + fl, (size_t)bytes);
+#ifdef PACKET_AUXDATA
+	for (cmsg = CMSG_FIRSTHDR(&msg);
+	     cmsg;
+	     cmsg = CMSG_NXTHDR(&msg, cmsg))
+	{
+		if (cmsg->cmsg_level == SOL_PACKET &&
+		    cmsg->cmsg_type == PACKET_AUXDATA) {
+			aux = (void *)CMSG_DATA(cmsg);
+			if (aux->tp_status & TP_STATUS_CSUMNOTREADY)
+				*flags |= BPF_PARTIALCSUM;
+		}
+	}
+#endif
 	return bytes;
 }
 

@@ -235,7 +235,7 @@ arp_read(void *arg)
 	while (!(state->bpf_flags & BPF_EOF)) {
 		bytes = bpf_read(ifp, state->bpf_fd, buf, sizeof(buf),
 				 &state->bpf_flags);
-		if (bytes == -1) {
+		if (bytes < 0) {
 			logerr("%s: %s", __func__, ifp->name);
 			arp_close(ifp);
 			break;

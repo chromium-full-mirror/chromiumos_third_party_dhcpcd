@@ -3842,7 +3842,7 @@ dhcp_readpacket(void *arg)
 	while (!(state->bpf_flags & BPF_EOF)) {
 		bytes = bpf_read(ifp, state->bpf_fd, buf, sizeof(buf),
 				 &state->bpf_flags);
-		if (bytes == -1) {
+		if (bytes < 0) {
 			if (state->state != DHS_NONE) {
 				logerr("%s: %s", __func__, ifp->name);
 				dhcp_close(ifp);
