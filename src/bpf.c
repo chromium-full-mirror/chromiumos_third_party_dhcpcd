@@ -395,7 +395,8 @@ bpf_cmp_hwaddr(struct bpf_insn *bpf, size_t bpf_len, size_t off,
 static const struct bpf_insn bpf_arp_ether [] = {
 	/* Ensure packet is at least correct size. */
 	BPF_STMT(BPF_LD + BPF_W + BPF_LEN, 0),
-	BPF_JUMP(BPF_JMP + BPF_JGE + BPF_K, sizeof(struct ether_arp), 1, 0),
+	BPF_JUMP(BPF_JMP + BPF_JGE + BPF_K,
+		 sizeof(struct ether_header) + sizeof(struct ether_arp), 1, 0),
 	BPF_STMT(BPF_RET + BPF_K, 0),
 
 	/* Check this is an ARP packet. */
