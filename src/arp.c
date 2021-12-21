@@ -127,24 +127,26 @@ arp_packet(struct interface *ifp, uint8_t *data, size_t len)
 		return;
 	memcpy(&ar, data, sizeof(ar));
 
-	/* These checks are enforced in the BPF filter. */
-#if 0
+        /* These checks are normally enforced in the BPF filter, but for the
+         * short period between opening the socket and installing the filter we
+         * might get some packets that does not fit so let's check this again. */
+#if 1
 	/* Families must match */
 	if (ar.ar_hrd != htons(ifp->family))
 		return;
 	/* Protocol must be IP. */
 	if (ar.ar_pro != htons(ETHERTYPE_IP))
-		continue;
+		return;
 	/* lladdr length matches */
 	if (ar.ar_hln != ifp->hwlen)
-		continue;
+		return;
 	/* Protocol length must match in_addr_t */
 	if (ar.ar_pln != sizeof(arm.sip.s_addr))
 		return;
 	/* Only these types are recognised */
 	if (ar.ar_op != htons(ARPOP_REPLY) &&
 	    ar.ar_op != htons(ARPOP_REQUEST))
-		continue;
+		return;
 #endif
 
 	/* Get pointers to the hardware addresses */
