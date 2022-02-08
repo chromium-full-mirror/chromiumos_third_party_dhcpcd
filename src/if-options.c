@@ -287,6 +287,7 @@ add_environ(char ***array, const char *value, int uniq)
 #define PARSE_STRING_NULL	1
 #define PARSE_HWADDR		2
 #define parse_string(a, b, c) parse_str((a), (b), (c), PARSE_STRING)
+#define parse_nstring(a, b, c) parse_str((a), (b), (c), PARSE_STRING_NULL)
 #define parse_hwaddr(a, b, c) parse_str((a), (b), (c), PARSE_HWADDR)
 static ssize_t
 parse_str(char *sbuf, size_t slen, const char *str, int flags)
@@ -304,7 +305,7 @@ parse_str(char *sbuf, size_t slen, const char *str, int flags)
 			str++;
 			end = p;
 		}
-	} else {
+	} else if (flags != PARSE_STRING_NULL) {
 		l = (size_t)hwaddr_aton(NULL, str);
 		if ((ssize_t) l != -1 && l > 1) {
 			if (l > slen) {
@@ -724,7 +725,7 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 		ARG_REQUIRED;
 		if (ifo->script != default_script)
 			free(ifo->script);
-		s = parse_str(NULL, 0, arg, PARSE_STRING_NULL);
+		s = parse_nstring(NULL, 0, arg);
 		if (s == 0) {
 			ifo->script = NULL;
 			break;
@@ -735,8 +736,9 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 			logerr(__func__);
 			return -1;
 		}
-		parse_str(ifo->script, dl, arg, PARSE_STRING_NULL);
-		if (ifo->script[0] == '\0' ||
+		s = parse_nstring(ifo->script, dl, arg);
+		if (s == -1 ||
+		    ifo->script[0] == '\0' ||
 		    strcmp(ifo->script, "/dev/null") == 0)
 		{
 			free(ifo->script);
@@ -755,7 +757,7 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 			ifo->options |= DHCPCD_HOSTNAME;
 			break;
 		}
-		s = parse_string(ifo->hostname, HOSTNAME_MAX_LEN, arg);
+		s = parse_nstring(ifo->hostname, sizeof(ifo->hostname), arg);
 		if (s == -1) {
 			logerr("%s: hostname", __func__);
 			return -1;
@@ -764,7 +766,6 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 			logerrx("hostname cannot begin with .");
 			return -1;
 		}
-		ifo->hostname[s] = '\0';
 		if (ifo->hostname[0] == '\0')
 			ifo->options &= ~DHCPCD_HOSTNAME;
 		else
