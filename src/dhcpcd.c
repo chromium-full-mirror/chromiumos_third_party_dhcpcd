@@ -405,9 +405,6 @@ dhcpcd_drop(struct interface *ifp, int stop)
 #ifdef INET
 	dhcp_drop(ifp, stop ? "STOP" : "EXPIRE");
 #endif
-#ifdef ARP
-	arp_drop(ifp);
-#endif
 #if !defined(DHCP6) && !defined(DHCP)
 	UNUSED(stop);
 #endif

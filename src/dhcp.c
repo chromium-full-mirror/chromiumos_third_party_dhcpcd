@@ -3083,6 +3083,9 @@ dhcp_drop(struct interface *ifp, const char *reason)
 #ifdef ARPING
 	state->arping_index = -1;
 #endif
+#ifdef ARP
+	arp_drop(ifp);
+#endif
 	if ((ifp->options->options & DHCPCD_RELEASE ||
              strcmp(reason, "RELEASE") == 0) &&
 	    !(ifp->options->options & DHCPCD_INFORM))
