@@ -3553,6 +3553,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	}
 
 	if (use_v6only) {
+		rpc_signal_status("IPv6OnlyPreferred");
 		dhcp_drop(ifp, "EXPIRE");
 		unlink(state->leasefile);
 		eloop_timeout_delete(ifp->ctx->eloop, NULL, ifp);
