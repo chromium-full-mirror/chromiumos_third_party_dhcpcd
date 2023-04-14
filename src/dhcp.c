@@ -2532,6 +2532,10 @@ dhcp_bind(struct interface *ifp)
 		state->offer = NULL;
 		state->offer_len = 0;
 	}
+	if (!state->new) {
+		logerrx("missing offer for %s", ifp->name);
+		return;
+	}
 	get_lease(ifp, lease, state->new, state->new_len);
 	if (ifo->options & DHCPCD_STATIC) {
 		loginfox("%s: using static address %s/%d",
