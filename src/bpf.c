@@ -580,9 +580,10 @@ static const struct bpf_insn bpf_bootp_filter[] = {
 	/* Store X in M3. */
 	BPF_STMT(BPF_STX, 3),
 
-	/* Make sure it's from and to the right port. */
-	BPF_STMT(BPF_LD + BPF_W + BPF_IND, 0),
-	BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, (BOOTPS << 16) + BOOTPC, 1, 0),
+	/* Make sure it's to the right port.
+	 * RFC2131 makes no mention of enforcing a source port. */
+	BPF_STMT(BPF_LD + BPF_H + BPF_IND, offsetof(struct udphdr, uh_dport)),
+	BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, BOOTPC, 1, 0),
 	BPF_STMT(BPF_RET + BPF_K, 0),
 
 	/* Store UDP length in X. */
