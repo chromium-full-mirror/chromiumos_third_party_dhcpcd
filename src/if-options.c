@@ -106,6 +106,7 @@
 #define O_INACTIVE		O_BASE + 47
 #define	O_MUDURL		O_BASE + 48
 #define	O_UNICASTGW		O_BASE + 49
+#define O_APPLY_DSCP		O_BASE + 50
 
 const struct option cf_options[] = {
 	{"background",      no_argument,       NULL, 'b'},
@@ -207,6 +208,7 @@ const struct option cf_options[] = {
 	{"inactive",        no_argument,       NULL, O_INACTIVE},
 	{"mudurl",          required_argument, NULL, O_MUDURL},
 	{"unicast",         no_argument,       NULL, O_UNICASTGW},
+	{"apply_dscp",      no_argument,       NULL, O_APPLY_DSCP},
 	{NULL,              0,                 NULL, '\0'}
 };
 
@@ -1319,6 +1321,9 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 		break;
 	case O_NOALIAS:
 		ifo->options |= DHCPCD_NOALIAS;
+		break;
+	case O_APPLY_DSCP:
+		ifo->options |= DHCPCD_APPLY_DSCP;
 		break;
 #ifdef DHCP6
 	case O_IA_NA:
