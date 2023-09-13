@@ -169,6 +169,7 @@ const struct option cf_options[] = {
 	{"configure",       no_argument,       NULL, O_CONFIGURE},
 	{"noconfigure",     no_argument,       NULL, O_NOCONFIGURE},
 	{"arp_persistdefence", no_argument,    NULL, O_ARP_PERSISTDEFENCE},
+	{"apply_dscp",      no_argument,       NULL, O_APPLY_DSCP},
 	{NULL,              0,                 NULL, '\0'}
 };
 
@@ -1433,6 +1434,9 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 		break;
 	case O_NOALIAS:
 		ifo->options |= DHCPCD_NOALIAS;
+		break;
+	case O_APPLY_DSCP:
+		ifo->options |= DHCPCD_APPLY_DSCP;
 		break;
 #ifdef DHCP6
 	case O_IA_NA:

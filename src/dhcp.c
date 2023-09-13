@@ -1623,7 +1623,7 @@ in_cksum(const void *data, size_t len, uint32_t *isum)
 
 static struct bootp_pkt *
 dhcp_makeudppacket(size_t *sz, const uint8_t *data, size_t length,
-	struct in_addr source, struct in_addr dest)
+	struct in_addr source, struct in_addr dest, uint8_t tos)
 {
 	struct bootp_pkt *udpp;
 	struct ip *ip;
@@ -1660,6 +1660,7 @@ dhcp_makeudppacket(size_t *sz, const uint8_t *data, size_t length,
 
 	ip->ip_v = IPVERSION;
 	ip->ip_hl = sizeof(*ip) >> 2;
+	ip->ip_tos = tos;
 	ip->ip_id = (uint16_t)arc4random_uniform(UINT16_MAX);
 	ip->ip_ttl = IPDEFTTL;
 	ip->ip_len = htons((uint16_t)(sizeof(*ip) + sizeof(*udp) + length));
@@ -1788,7 +1789,8 @@ send_message(struct interface *ifp, uint8_t type,
 	if (dhcp_openbpf(ifp) == -1)
 		goto out;
 
-	udp = dhcp_makeudppacket(&ulen, (uint8_t *)bootp, len, from, to);
+	udp = dhcp_makeudppacket(&ulen, (uint8_t *)bootp, len, from, to,
+		  (ifo->options & DHCPCD_APPLY_DSCP) ? (48 << 2) : 0);
 	if (udp == NULL) {
 		logerr("%s: dhcp_makeudppacket", ifp->name);
 		r = 0;

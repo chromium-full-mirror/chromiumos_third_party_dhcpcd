@@ -72,6 +72,7 @@
 #define DHCPCD_IPV4LL			(1ULL << 10)
 #define DHCPCD_DUID			(1ULL << 11)
 #define DHCPCD_PERSISTENT		(1ULL << 12)
+#define DHCPCD_APPLY_DSCP		(1ULL << 13)
 #define DHCPCD_DAEMONISE		(1ULL << 14)
 #define DHCPCD_DAEMONISED		(1ULL << 15)
 #define DHCPCD_TEST			(1ULL << 16)
@@ -185,6 +186,7 @@
 #define O_NOCONFIGURE		O_BASE + 51
 #define O_RANDOMISE_HWADDR	O_BASE + 52
 #define O_ARP_PERSISTDEFENCE	O_BASE + 53
+#define O_APPLY_DSCP		O_BASE + 54
 
 extern const struct option cf_options[];
 
