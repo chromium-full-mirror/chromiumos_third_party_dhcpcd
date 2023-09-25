@@ -1346,6 +1346,7 @@ dhcpcd_renew(struct dhcpcd_ctx *ctx)
 
 #ifdef USE_SIGNALS
 #define sigmsg "received %s, %s"
+static volatile bool dhcpcd_exiting = false;
 static void
 signal_cb(int sig, void *arg)
 {
@@ -1395,9 +1396,18 @@ signal_cb(int sig, void *arg)
 		return;
 	}
 
+	/*
+	 * During processing SIGALRM we don't want to process SIGTERM again,
+	 * as that could trigger memory issues.
+	 */
+	if (dhcpcd_exiting)
+		return;
+
+	dhcpcd_exiting = true;
 	if (!(ctx->options & DHCPCD_TEST))
 		stop_all_interfaces(ctx, opts);
 	eloop_exit(ctx->eloop, exit_code);
+	dhcpcd_exiting = false;
 }
 #endif
 
