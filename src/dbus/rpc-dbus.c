@@ -213,6 +213,7 @@ static const struct o_dbus dhos[] = {
 	  "NetinfoServerAddress" },
 	{ "netinfo_server_tag=", DBUS_TYPE_STRING, 0, "NetinfoServerTag" },
 	{ "default_url=", DBUS_TYPE_STRING, 0, "DefaultURL" },
+	{ "captive_portal_uri=", DBUS_TYPE_STRING, 0, "CaptivePortalUri" },
 	{ "subnet_selection=", DBUS_TYPE_UINT32, 0, "SubnetSelection" },
 	{ "domain_search=", DBUS_TYPE_ARRAY, DBUS_TYPE_STRING,
 	  "DomainSearch" },
