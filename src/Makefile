@@ -93,7 +93,6 @@ _embeddedinstall: ${DHCPCD_DEFS}
 _proginstall: ${PROG}
 	${INSTALL} -d ${DESTDIR}${SBINDIR}
 	${INSTALL} -m ${BINMODE} ${PROG} ${DESTDIR}${SBINDIR}
-	${INSTALL} -d ${DESTDIR}${DBDIR}
 
 proginstall: _proginstall ${EMBEDDEDINSTALL}
 	for x in ${SUBDIRS}; do cd $$x; ${MAKE} $@ || exit $$?; cd ..; done
