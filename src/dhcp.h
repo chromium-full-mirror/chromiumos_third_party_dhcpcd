@@ -291,6 +291,7 @@ void dhcp_abort(struct interface *);
 void dhcp_discover(void *);
 void dhcp_inform(struct interface *);
 void dhcp_renew(struct interface *);
+void dhcp_rebind_forced(struct interface *);
 void dhcp_bind(struct interface *);
 void dhcp_reboot_newopts(struct interface *, unsigned long long);
 void dhcp_close(struct interface *);
