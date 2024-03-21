@@ -418,7 +418,7 @@ msg_handler(DBusConnection *con, DBusMessage *msg, __unused void *data)
 			logerrx("Invalid arguments for Rebind");
 			return get_dbus_error(con, msg, S_EINVAL, S_ARGS);
 		}
-		dhcpcd_rebind_interface(dhcpcd_ctx, iface_name);
+		dhcpcd_start_interface(dhcpcd_ctx, iface_name);
 		return dbus_ack(con, msg);
 	} else if (IsMethod(msg, "Release")) {
 		const char *iface_name;

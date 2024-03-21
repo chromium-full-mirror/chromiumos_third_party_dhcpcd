@@ -1214,21 +1214,6 @@ dhcpcd_stop_interfaces(struct dhcpcd_ctx *ctx)
 	}
 }
 
-/* Provides an interface for DHCP rebind. This method is called upon
- * receiving a DHCP rebind RPC call. */
-void
-dhcpcd_rebind_interface(struct dhcpcd_ctx *ctx, const char *ifname)
-{
-	struct interface *ifp;
-	ifp = if_find(ctx->ifaces, ifname);
-	if (ifp == NULL)
-	{
-		logerrx("rebind_interface: %s not found", ifname);
-		return;
-	}
-	dhcp_rebind_forced(ifp);
-}
-
 void
 dhcpcd_release_ipv4(struct dhcpcd_ctx *ctx, const char *ifname)
 {
