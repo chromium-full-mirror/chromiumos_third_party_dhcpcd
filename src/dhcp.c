@@ -2126,32 +2126,6 @@ dhcp_rebind(void *arg)
 	send_rebind(ifp);
 }
 
-/* Forces an instant DHCP rebind for interface |ifp|, regardless of its
- * remaining lease time. This can be used in an RPC call.
-
- * The implementation is largely copied from dhcp_rebind(), except for
- * changes in logging and eloop timeout deletion. */
-void
-dhcp_rebind_forced(struct interface* ifp)
-{
-	struct dhcp_state *state = D_STATE(ifp);
-	struct dhcp_lease *lease = &state->lease;
-
-	rpc_signal_status("Rebind");
-	state->state = DHS_REBIND;
-	/* All old renew and rebind timeouts should be removed. */
-	eloop_timeout_delete(ifp->ctx->eloop, send_renew, ifp);
-	eloop_timeout_delete(ifp->ctx->eloop, dhcp_startrenew, ifp);
-	eloop_timeout_delete(ifp->ctx->eloop, send_rebind, ifp);
-	eloop_timeout_delete(ifp->ctx->eloop, dhcp_rebind, ifp);
-	state->lease.server.s_addr = INADDR_ANY;
-	state->nak_receive_count = 0;
-	state->interval = 0;
-	ifp->options->options &= ~(DHCPCD_CSR_WARNED |
-	    DHCPCD_ROUTER_HOST_ROUTE_WARNED);
-	send_rebind(ifp);
-}
-
 #ifdef ARP
 static void
 save_gateway_addr(struct interface *ifp, const uint8_t *gw_hwaddr)
