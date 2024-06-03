@@ -1,6 +1,6 @@
 # dhcpcd Makefile
 
-PROG=		dhcpcd
+PROG=		dhcpcd7
 SRCS=		common.c control.c dhcpcd.c duid.c eloop.c logerr.c
 SRCS+=		if.c if-options.c sa.c route.c
 SRCS+=		dhcp-common.c
@@ -106,13 +106,13 @@ _maninstall: ${MAN5} ${MAN8}
 _dbusinstall: dbus/dhcpcd-dbus.conf
 	${INSTALL} -d ${DESTDIR}${DBUSDIR}
 	${INSTALL} -m ${CONFMODE} dbus/dhcpcd-dbus.conf \
-		${DESTDIR}${DBUSDIR}/dhcpcd.conf
+		${DESTDIR}${DBUSDIR}/dhcpcd7.conf
 
 _confinstall: ${DBUSINSTALL}
 	${INSTALL} -d ${DESTDIR}${SYSCONFDIR}
 	# Install a new default config if not present
-	test -e ${DESTDIR}${SYSCONFDIR}/dhcpcd.conf || \
-		${INSTALL} -m ${CONFMODE} dhcpcd.conf ${DESTDIR}${SYSCONFDIR}
+	test -e ${DESTDIR}${SYSCONFDIR}/dhcpcd7.conf || \
+		${INSTALL} -m ${CONFMODE} dhcpcd.conf ${DESTDIR}${SYSCONFDIR}/dhcpcd7.conf
 	# Attempt to move files from sysconfig to dbdir
 	if [ ! -e ${DESTDIR}${DBDIR}/duid -a \
 	    -e ${DESTDIR}${SYSCONFDIR}/dhcpcd.duid ]; \

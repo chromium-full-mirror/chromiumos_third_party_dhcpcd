@@ -7,7 +7,7 @@ CSTD?=		c99
 CFLAGS+=	-std=${CSTD}
 CPPFLAGS+=	-I${TOP} -I${TOP}/src
 
-DEVDIR=		${LIBDIR}/dhcpcd/dev
+DEVDIR=		${LIBDIR}/dhcpcd7/dev
 DSRC=		${DEV_PLUGINS:=.c}
 DOBJ=		${DSRC:.c=.o}
 DSOBJ=		${DOBJ:.o=.So}
