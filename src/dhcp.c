@@ -2924,12 +2924,13 @@ log_dhcp(int loglevel, const char *msg,
 	if (bootp->sname[0] && r == 0 && !(overl & 2)) {
 		print_string(sname, sizeof(sname), OT_STRING | OT_DOMAIN,
 		    bootp->sname, sizeof(bootp->sname));
+		/* b/351973737: SSID is considered PII. Don't log it. */
 		if (a == NULL)
-			logmessage(loglevel, "%s: %s %s %s %s",
-			    ifp->name, msg, tfrom, inet_ntoa(addr), sname);
+			logmessage(loglevel, "%s: %s %s %s <redacted>",
+			    ifp->name, msg, tfrom, inet_ntoa(addr));
 		else
-			logmessage(loglevel, "%s: %s %s %s %s %s",
-			    ifp->name, msg, a, tfrom, inet_ntoa(addr), sname);
+			logmessage(loglevel, "%s: %s %s %s %s <redacted>",
+			    ifp->name, msg, a, tfrom, inet_ntoa(addr));
 	} else {
 		if (r != 0) {
 			tfrom = "via";
