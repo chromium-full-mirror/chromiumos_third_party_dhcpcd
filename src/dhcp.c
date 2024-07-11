@@ -51,6 +51,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1601,14 +1602,15 @@ errexit:
 static uint16_t
 in_cksum(const void *data, size_t len, uint32_t *isum)
 {
-	const uint16_t *word = data;
+	const uint8_t *bytes = data;
 	uint32_t sum = isum != NULL ? *isum : 0;
 
-	for (; len > 1; len -= sizeof(*word))
-		sum += *word++;
+	size_t i;
+	for (i = 0; i + 1 < len; i += sizeof(uint16_t))
+		sum += htons((uint16_t)(bytes[i] << 8 | bytes[i + 1]));
 
-	if (len == 1)
-		sum += htons((uint16_t)(*(const uint8_t *)word << 8));
+	if (i + 1 == len)
+		sum += htons((uint16_t)(bytes[i] << 8));
 
 	if (isum != NULL)
 		*isum = sum;
@@ -3476,15 +3478,10 @@ checksums_valid(void *packet,
     struct in_addr *from, unsigned int flags)
 {
 	struct ip *ip = packet;
-	union pip {
-		struct ip ip;
-		uint16_t w[sizeof(struct ip) / 2];
-	} pip = {
-		.ip = {
-			.ip_p = IPPROTO_UDP,
-			.ip_src = ip->ip_src,
-			.ip_dst = ip->ip_dst,
-		}
+	struct ip pip = {
+		.ip_p = IPPROTO_UDP,
+		.ip_src = ip->ip_src,
+		.ip_dst = ip->ip_dst,
 	};
 	size_t ip_hlen;
 	struct udphdr udp;
@@ -3508,7 +3505,7 @@ checksums_valid(void *packet,
 
 	/* UDP checksum is based on a pseudo IP header alongside
 	 * the UDP header and payload. */
-	pip.ip.ip_len = udp.uh_ulen;
+	pip.ip_len = udp.uh_ulen;
 	csum = 0;
 
 	/* Need to zero the UDP sum in the packet for the checksum to work. */
@@ -3516,7 +3513,7 @@ checksums_valid(void *packet,
 	memset(uh_sump, 0, sizeof(udp.uh_sum));
 
 	/* Checksum pseudo header and then UDP + payload. */
-	in_cksum(pip.w, sizeof(pip.w), &csum);
+	in_cksum(&pip, sizeof(pip), &csum);
 	csum = in_cksum(udpp, ntohs(udp.uh_ulen), &csum);
 
 #if 0	/* Not needed, just here for completeness. */
