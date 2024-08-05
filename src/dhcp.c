@@ -3292,7 +3292,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	}
 
 	if (use_v6only) {
-		dhcp_drop(ifp, "EXPIRE");
+		dhcp_drop(ifp, "IPV6-ONLY-PREFERRED");
 		dhcp_unlink(ifp->ctx, state->leasefile);
 		eloop_timeout_delete(ifp->ctx->eloop, NULL, ifp);
 		eloop_timeout_add_sec(ifp->ctx->eloop, v6only_time,
