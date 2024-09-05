@@ -310,7 +310,7 @@ get_option_uint32(struct dhcpcd_ctx *ctx,
 	uint32_t d;
 
 	p = get_option(ctx, bootp, bootp_len, option, &len);
-	if (!p || len < (ssize_t)sizeof(d))
+	if (!p || len != (ssize_t)sizeof(d))
 		return -1;
 	memcpy(&d, p, sizeof(d));
 	if (i)
@@ -327,7 +327,7 @@ get_option_uint16(struct dhcpcd_ctx *ctx,
 	uint16_t d;
 
 	p = get_option(ctx, bootp, bootp_len, option, &len);
-	if (!p || len < (ssize_t)sizeof(d))
+	if (!p || len != (ssize_t)sizeof(d))
 		return -1;
 	memcpy(&d, p, sizeof(d));
 	if (i)
@@ -343,7 +343,7 @@ get_option_uint8(struct dhcpcd_ctx *ctx,
 	size_t len;
 
 	p = get_option(ctx, bootp, bootp_len, option, &len);
-	if (!p || len < (ssize_t)sizeof(*p))
+	if (!p || len != (ssize_t)sizeof(*p))
 		return -1;
 	if (i)
 		*i = *(p);
@@ -3456,8 +3456,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	/* Ensure that no reject options are present */
 	for (i = 1; i < 255; i++) {
 		if (has_option_mask(ifo->rejectmask, i) &&
-		    get_option_uint8(ifp->ctx, &tmp,
-		    bootp, bootp_len, (uint8_t)i) == 0)
+		    get_option(ifp->ctx, bootp, bootp_len, (uint8_t)i, NULL))
 		{
 			LOGDHCP(logwarnx, "reject DHCP");
 			return;
@@ -3485,8 +3484,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	/* Ensure that all required options are present */
 	for (i = 1; i < 255; i++) {
 		if (has_option_mask(ifo->requiremask, i) &&
-		    get_option_uint8(ifp->ctx, &tmp,
-		    bootp, bootp_len, (uint8_t)i) != 0)
+		    !get_option(ifp->ctx, bootp, bootp_len, (uint8_t)i, NULL))
 		{
 			/* If we are BOOTP, then ignore the need for serverid.
 			 * To ignore BOOTP, require dhcp_message_type.
