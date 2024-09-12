@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
  * Privilege Separation for dhcpcd, Linux driver
- * Copyright (c) 2006-2023 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2024 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -440,6 +440,9 @@ static struct sock_filter ps_seccomp_filter[] = {
 #endif
 #ifdef __NR_shutdown
 	SECCOMP_ALLOW(__NR_shutdown),
+#endif
+#ifdef __NR_statx
+	SECCOMP_ALLOW(__NR_statx),
 #endif
 #ifdef __NR_time
 	SECCOMP_ALLOW(__NR_time),

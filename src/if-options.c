@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
  * dhcpcd - DHCP client daemon
- * Copyright (c) 2006-2023 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2024 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -1219,7 +1219,7 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 			if (p == NULL)
 				break;
 			ifo->mtu = (unsigned int)strtou(p, NULL, 0,
-			    MTU_MIN, MTU_MAX, &e);
+			    IPV4_MMTU, UINT_MAX, &e);
 			if (e) {
 				logerrx("invalid MTU %s", p);
 				return -1;

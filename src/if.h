@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
  * dhcpcd - DHCP client daemon
- * Copyright (c) 2006-2023 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2024 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -178,9 +178,7 @@ struct interface *if_find(struct if_head *, const char *);
 struct interface *if_findindex(struct if_head *, unsigned int);
 struct interface *if_loopback(struct dhcpcd_ctx *);
 void if_free(struct interface *);
-int if_domtu(const struct interface *, short int);
-#define if_getmtu(ifp) if_domtu((ifp), 0)
-#define if_setmtu(ifp, mtu) if_domtu((ifp), (mtu))
+int if_getmtu(const struct interface *);
 int if_carrier(struct interface *, const void *);
 bool if_roaming(struct interface *);
 
@@ -214,7 +212,7 @@ int if_ignoregroup(int, const char *);
 bool if_ignore(struct dhcpcd_ctx *, const char *);
 int if_vimaster(struct dhcpcd_ctx *ctx, const char *);
 unsigned short if_vlanid(const struct interface *);
-char * if_getnetworknamespace(char *, size_t);
+char * if_getnetworknamespace(char *, size_t); /* used by udev */
 int if_opensockets(struct dhcpcd_ctx *);
 int if_opensockets_os(struct dhcpcd_ctx *);
 void if_closesockets(struct dhcpcd_ctx *);

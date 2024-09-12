@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
  * dhcpcd - DHCP client daemon
- * Copyright (c) 2006-2023 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2024 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -70,16 +70,10 @@
 #endif
 
 #if __GNUC__ > 2 || defined(__INTEL_COMPILER)
-# ifndef __packed
-#  define __packed __attribute__((__packed__))
-# endif
 # ifndef __unused
 #  define __unused __attribute__((__unused__))
 # endif
 #else
-# ifndef __packed
-#  define __packed
-# endif
 # ifndef __unused
 #  define __unused
 # endif

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
  * dhcpcd - DHCP client daemon
- * Copyright (c) 2006-2023 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2024 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -98,6 +98,8 @@
 __CTASSERT(sizeof(struct ip)		== 20);
 __CTASSERT(sizeof(struct udphdr)	== 8);
 __CTASSERT(sizeof(struct bootp)		== 300);
+#define IP_UDP_SIZE	sizeof(struct ip) + sizeof(struct udphdr)
+#define BOOTP_MIN_MTU	IP_UDP_SIZE + sizeof(struct bootp)
 
 struct dhcp_op {
 	uint8_t value;
@@ -677,6 +679,8 @@ dhcp_get_mtu(const struct interface *ifp)
 	    get_option_uint16(ifp->ctx, &mtu,
 			      state->new, state->new_len, DHO_MTU) == -1)
 		return 0;
+	if (mtu < IPV4_MMTU)
+		return IPV4_MMTU;
 	return mtu;
 }
 
@@ -741,19 +745,24 @@ make_message(struct bootp **bootpm, const struct interface *ifp, uint8_t type)
 	uint8_t *auth, auth_len;
 #endif
 
-	if ((mtu = if_getmtu(ifp)) == -1)
+	/* We could take the DHCPv6 approach and work out the
+	 * message length up front rather than this big hammer approach. */
+	if ((mtu = if_getmtu(ifp)) == -1) {
 		logerr("%s: if_getmtu", ifp->name);
-	else if (mtu < MTU_MIN) {
-		if (if_setmtu(ifp, MTU_MIN) == -1)
-			logerr("%s: if_setmtu", ifp->name);
-		mtu = MTU_MIN;
+		return -1;
+	}
+	if ((size_t)mtu < BOOTP_MIN_MTU) {
+		logerr("%s: interface mtu is too small (%d<%zu)",
+		    ifp->name, mtu, BOOTP_MIN_MTU);
+		return -1;
 	}
 
-	if (ifo->options & DHCPCD_BOOTP)
-		bootp = calloc(1, sizeof (*bootp));
-	else
+	if (ifo->options & DHCPCD_BOOTP) {
+		bootp = calloc(1, sizeof(*bootp));
+	} else {
 		/* Make the maximal message we could send */
-		bootp = calloc(1, (size_t)(mtu - IP_UDP_SIZE));
+		bootp = calloc(1, (size_t)mtu - IP_UDP_SIZE);
+	}
 
 	if (bootp == NULL)
 		return -1;
@@ -775,7 +784,7 @@ make_message(struct bootp **bootpm, const struct interface *ifp, uint8_t type)
 	}
 
 	if (ifo->options & DHCPCD_BROADCAST &&
-	    bootp->ciaddr == 0 &&
+	    bootp->ciaddr == INADDR_ANY &&
 	    type != DHCP_DECLINE &&
 	    type != DHCP_RELEASE)
 		bootp->flags = htons(BROADCAST_FLAG);
@@ -798,7 +807,7 @@ make_message(struct bootp **bootpm, const struct interface *ifp, uint8_t type)
 		return sizeof(*bootp);
 
 	p = bootp->vend;
-	e = (uint8_t *)bootp + (mtu - IP_UDP_SIZE) - 1; /* -1 for DHO_END */
+	e = (uint8_t *)bootp + ((size_t)mtu - IP_UDP_SIZE - 1/* DHO_END */);
 
 	ul = htonl(MAGIC_COOKIE);
 	memcpy(p, &ul, sizeof(ul));
@@ -925,7 +934,7 @@ make_message(struct bootp **bootpm, const struct interface *ifp, uint8_t type)
 			AREA_CHECK(2);
 			*p++ = DHO_MAXMESSAGESIZE;
 			*p++ = 2;
-			sz = htons((uint16_t)(mtu - IP_UDP_SIZE));
+			sz = htons((uint16_t)((size_t)mtu - IP_UDP_SIZE));
 			memcpy(p, &sz, 2);
 			p += 2;
 		}
@@ -1410,9 +1419,15 @@ get_lease(struct interface *ifp,
 			const struct ipv4_addr *ia;
 
 			ia = ipv4_iffindaddr(ifp, &lease->addr, NULL);
-			assert(ia != NULL);
-			lease->mask = ia->mask;
-			lease->brd = ia->brd;
+			if (ia == NULL) {
+				lease->mask.s_addr =
+				    ipv4_getnetmask(lease->addr.s_addr);
+				lease->brd.s_addr =
+				    lease->addr.s_addr | ~lease->mask.s_addr;
+			} else {
+				lease->mask = ia->mask;
+				lease->brd = ia->brd;
+			}
 		}
 	} else {
 		if (get_option_addr(ctx, &lease->mask, bootp, len,
@@ -1647,7 +1662,7 @@ dhcp_makeudppacket(size_t *sz, const uint8_t *data, size_t length,
 
 	ip->ip_p = IPPROTO_UDP;
 	ip->ip_src.s_addr = source.s_addr;
-	if (dest.s_addr == 0)
+	if (dest.s_addr == INADDR_ANY)
 		ip->ip_dst.s_addr = INADDR_BROADCAST;
 	else
 		ip->ip_dst.s_addr = dest.s_addr;
@@ -3035,7 +3050,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	char *msg;
 	bool bootp_copied;
 	uint32_t v6only_time = 0;
-	bool use_v6only = false;
+	bool use_v6only = false, has_auto_conf = false;
 #ifdef AUTH
 	const uint8_t *auth;
 	size_t auth_len;
@@ -3237,7 +3252,8 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 
 	if (has_option_mask(ifo->requestmask, DHO_IPV6_PREFERRED_ONLY)) {
 		if (get_option_uint32(ifp->ctx, &v6only_time, bootp, bootp_len,
-		    DHO_IPV6_PREFERRED_ONLY) == 0 && (state->state == DHS_DISCOVER ||
+		    DHO_IPV6_PREFERRED_ONLY) == 0 &&
+		    (state->state == DHS_DISCOVER ||
 		    state->state == DHS_REBOOT || state->state == DHS_NONE))
 		{
 			char v6msg[128];
@@ -3253,8 +3269,8 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 	}
 
 	/* DHCP Auto-Configure, RFC 2563 */
-	if (type == DHCP_OFFER && bootp->yiaddr == 0) {
-		LOGDHCP(LOG_WARNING, "no address given");
+	if (type == DHCP_OFFER && bootp->yiaddr == INADDR_ANY) {
+		LOGDHCP(LOG_WARNING, "no address offered");
 		if ((msg = get_option_string(ifp->ctx,
 		    bootp, bootp_len, DHO_MESSAGE)))
 		{
@@ -3266,6 +3282,7 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 		    get_option_uint8(ifp->ctx, &tmp, bootp, bootp_len,
 		    DHO_AUTOCONFIGURE) == 0)
 		{
+			has_auto_conf = true;
 			switch (tmp) {
 			case 0:
 				LOGDHCP(LOG_WARNING, "IPv4LL disabled from");
@@ -3284,23 +3301,26 @@ dhcp_handledhcp(struct interface *ifp, struct bootp *bootp, size_t bootp_len,
 				    ifp->name, tmp);
 				break;
 			}
-			eloop_timeout_delete(ifp->ctx->eloop, NULL, ifp);
-			eloop_timeout_add_sec(ifp->ctx->eloop,
-			    use_v6only ? v6only_time : DHCP_MAX,
-			    dhcp_discover, ifp);
 		}
 #endif
-		return;
 	}
 
 	if (use_v6only) {
 		dhcp_drop(ifp, "IPV6-ONLY-PREFERRED");
 		dhcp_unlink(ifp->ctx, state->leasefile);
+	}
+	if (use_v6only || has_auto_conf) {
 		eloop_timeout_delete(ifp->ctx->eloop, NULL, ifp);
-		eloop_timeout_add_sec(ifp->ctx->eloop, v6only_time,
+		eloop_timeout_add_sec(ifp->ctx->eloop,
+		    use_v6only ? v6only_time : DHCP_MAX,
 		    dhcp_discover, ifp);
 		return;
 	}
+
+	/* No hints as what to do with no address?
+	 * All we can do is continue. */
+	if (type == DHCP_OFFER && bootp->yiaddr == INADDR_ANY)
+		return;
 
 	/* Ensure that the address offered is valid */
 	if ((type == 0 || type == DHCP_OFFER || type == DHCP_ACK) &&

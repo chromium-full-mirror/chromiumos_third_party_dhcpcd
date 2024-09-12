@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
  * dhcpcd - DHCP client daemon
- * Copyright (c) 2006-2023 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2024 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -967,6 +967,7 @@ ipv4_handleifa(struct dhcpcd_ctx *ctx,
 		if (mask->s_addr != INADDR_ANY &&
 		    mask->s_addr != ia->mask.s_addr)
 			return;
+		ia->addr_flags = addrflags;
 		TAILQ_REMOVE(&state->addrs, ia, next);
 		break;
 	default:
