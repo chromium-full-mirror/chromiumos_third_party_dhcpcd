@@ -1041,19 +1041,9 @@ fi
 if [ -z "$POLL" ]; then
 	printf "Testing for epoll ... "
 	cat <<EOF >_epoll.c
-#ifdef __linux__
-#include <linux/version.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-#error kernel has buggy epoll_wait timeout
-#endif
-#endif
-
 #include <sys/epoll.h>
-#include <unistd.h>
 int main(void) {
-	epoll_create1(EPOLL_CLOEXEC);
-	epoll_pwait(-1, NULL, 0, 0, NULL);
-	return 0;
+	return epoll_create1(EPOLL_CLOEXEC);
 }
 EOF
 	if $XCC _epoll.c -o _epoll 2>&3; then
