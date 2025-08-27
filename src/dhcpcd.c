@@ -699,16 +699,8 @@ dhcpcd_initstate(struct interface *ifp, unsigned long long options)
 static void
 dhcpcd_reportssid(struct interface *ifp)
 {
-	char pssid[IF_SSIDLEN * 4];
-
-	if (print_string(pssid, sizeof(pssid), OT_ESCSTRING,
-	    ifp->ssid, ifp->ssid_len) == -1)
-	{
-		logerr(__func__);
-		return;
-	}
-
-	loginfox("%s: connected to Access Point: %s", ifp->name, pssid);
+	/* b/412855337: SSID is considered PII. Don't log it. */
+	loginfox("%s: connected to Access Point: <redacted>", ifp->name);
 }
 
 static void
